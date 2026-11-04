@@ -1886,6 +1886,11 @@ code {
   margin: 0.65rem 0;
 }
 
+/* A2UI cards space their content with the catalog's own layout gaps. */
+.chat-markdown [data-a2ui-surface] :is(p, h1, h2, h3, h4, h5) {
+  margin: 0;
+}
+
 .chat-markdown-math-display .katex-display {
   margin: 0;
 }

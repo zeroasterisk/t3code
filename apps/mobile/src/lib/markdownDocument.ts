@@ -2,6 +2,7 @@ import type { Root, RootContent } from "mdast";
 import { unified, type Processor } from "unified";
 import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
+import { a2uiTagsToFences } from "@t3tools/shared/a2uiMessage";
 import { remarkKeepWindowsProsePaths } from "@t3tools/shared/markdownWindowsPaths";
 import { isWindowsAbsolutePath } from "@t3tools/shared/path";
 
@@ -431,7 +432,7 @@ function markdownWithWindowsPathDestinations(markdown: string): string {
 
 // HTML wrappers can expose Markdown that wasn't in the first AST, so normalize them first.
 export function markdownForNativeParsing(markdown: string): string {
-  return markdownWithWindowsPathDestinations(markdownWithHtml(markdown));
+  return markdownWithWindowsPathDestinations(markdownWithHtml(a2uiTagsToFences(markdown)));
 }
 
 export function parseMarkdownDocument(markdown: string): Root {

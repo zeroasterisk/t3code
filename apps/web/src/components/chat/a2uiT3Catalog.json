@@ -1,0 +1,527 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "protocolVersion": "1.0",
+  "title": "T3 Code catalog",
+  "description": "T3 Code's own chat components, for agents to compose replies with.",
+  "catalogId": "urn:t3code:a2ui:catalog:v1",
+  "instructions": "Compose replies from T3 Code's own components. Start with a Panel as root, use Stack for layout, and end with Buttons when the user should choose. Inputs (Choice, Switch, Field) only reach the agent through a Button action context, so bind each input's value to a data path and include those paths in the action context. A click arrives as the user's next message: a short line and an a2ui-action code block holding JSON with surfaceId, name, sourceComponentId, and context. A card sends one action, so send a new card to ask again.",
+  "components": {
+    "Panel": {
+      "type": "object",
+      "description": "A bordered card, the same surface T3 Code uses for its own request cards. Use one as the root of most replies.",
+      "properties": {
+        "component": {
+          "const": "Panel"
+        },
+        "children": {
+          "$ref": "common_types.json#/$defs/ChildList",
+          "description": "Components inside the panel, top to bottom."
+        },
+        "title": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Optional heading at the top of the panel."
+        },
+        "description": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Optional muted line under the title."
+        }
+      },
+      "required": ["component", "children"],
+      "unevaluatedProperties": false
+    },
+    "Stack": {
+      "type": "object",
+      "description": "Lays children out in a column or a row.",
+      "properties": {
+        "component": {
+          "const": "Stack"
+        },
+        "children": {
+          "$ref": "common_types.json#/$defs/ChildList",
+          "description": "Components to lay out."
+        },
+        "direction": {
+          "type": "string",
+          "enum": ["vertical", "horizontal"],
+          "description": "Column or row.",
+          "default": "vertical"
+        },
+        "gap": {
+          "type": "string",
+          "enum": ["small", "medium", "large"],
+          "description": "Space between children.",
+          "default": "medium"
+        },
+        "align": {
+          "type": "string",
+          "enum": ["start", "center", "end", "stretch"],
+          "description": "Cross-axis alignment.",
+          "default": "stretch"
+        },
+        "justify": {
+          "type": "string",
+          "enum": ["start", "center", "end", "between"],
+          "description": "Main-axis distribution.",
+          "default": "start"
+        }
+      },
+      "required": ["component", "children"],
+      "unevaluatedProperties": false
+    },
+    "Text": {
+      "type": "object",
+      "description": "Plain text in T3 Code's chat typography. No markdown.",
+      "properties": {
+        "component": {
+          "const": "Text"
+        },
+        "text": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "The text."
+        },
+        "variant": {
+          "type": "string",
+          "enum": ["title", "heading", "body", "muted", "caption"],
+          "description": "Text style.",
+          "default": "body"
+        }
+      },
+      "required": ["component", "text"],
+      "unevaluatedProperties": false
+    },
+    "CodeBlock": {
+      "type": "object",
+      "description": "Syntax-highlighted code in T3 Code's code block, with copy and wrap controls.",
+      "properties": {
+        "component": {
+          "const": "CodeBlock"
+        },
+        "code": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "The source code."
+        },
+        "language": {
+          "type": "string",
+          "description": "Language id for highlighting, such as ts, py, sh, json."
+        },
+        "title": {
+          "type": "string",
+          "description": "Optional header label, such as a file name."
+        }
+      },
+      "required": ["component", "code"],
+      "unevaluatedProperties": false
+    },
+    "Diff": {
+      "type": "object",
+      "description": "A unified diff for one file: a file chip and +/- counts above the highlighted patch. Counts are computed from the patch.",
+      "properties": {
+        "component": {
+          "const": "Diff"
+        },
+        "patch": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Unified diff text (lines starting with +, -, or a space; @@ hunk headers allowed)."
+        },
+        "path": {
+          "type": "string",
+          "description": "File path shown in the header."
+        }
+      },
+      "required": ["component", "patch"],
+      "unevaluatedProperties": false
+    },
+    "Command": {
+      "type": "object",
+      "description": "A shell command in T3 Code's command box with a copy button.",
+      "properties": {
+        "component": {
+          "const": "Command"
+        },
+        "command": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "The command line, without a prompt sign."
+        }
+      },
+      "required": ["component", "command"],
+      "unevaluatedProperties": false
+    },
+    "File": {
+      "type": "object",
+      "description": "An inline file chip with the file-type icon T3 Code uses for paths.",
+      "properties": {
+        "component": {
+          "const": "File"
+        },
+        "path": {
+          "type": "string",
+          "description": "File path. The icon follows the extension."
+        },
+        "label": {
+          "type": "string",
+          "description": "Optional text to show instead of the file name."
+        }
+      },
+      "required": ["component", "path"],
+      "unevaluatedProperties": false
+    },
+    "DiffStat": {
+      "type": "object",
+      "description": "Green and red line counts, as in T3 Code's change summaries.",
+      "properties": {
+        "component": {
+          "const": "DiffStat"
+        },
+        "additions": {
+          "type": "number",
+          "description": "Lines added."
+        },
+        "deletions": {
+          "type": "number",
+          "description": "Lines removed."
+        }
+      },
+      "required": ["component", "additions", "deletions"],
+      "unevaluatedProperties": false
+    },
+    "Badge": {
+      "type": "object",
+      "description": "A small status label.",
+      "properties": {
+        "component": {
+          "const": "Badge"
+        },
+        "text": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Label text."
+        },
+        "tone": {
+          "type": "string",
+          "enum": ["neutral", "info", "success", "warning", "error"],
+          "description": "Color.",
+          "default": "neutral"
+        }
+      },
+      "required": ["component", "text"],
+      "unevaluatedProperties": false
+    },
+    "Alert": {
+      "type": "object",
+      "description": "A callout with an icon, for a result, warning, or failure.",
+      "properties": {
+        "component": {
+          "const": "Alert"
+        },
+        "title": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Main line."
+        },
+        "description": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Optional detail under the title."
+        },
+        "tone": {
+          "type": "string",
+          "enum": ["neutral", "info", "success", "warning", "error"],
+          "description": "Color and icon.",
+          "default": "info"
+        }
+      },
+      "required": ["component", "title"],
+      "unevaluatedProperties": false
+    },
+    "Keys": {
+      "type": "object",
+      "description": "A keyboard shortcut in T3 Code's key caps.",
+      "properties": {
+        "component": {
+          "const": "Keys"
+        },
+        "keys": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Keys in order, such as [\"Ctrl\", \"K\"]."
+        }
+      },
+      "required": ["component", "keys"],
+      "unevaluatedProperties": false
+    },
+    "Activity": {
+      "type": "object",
+      "description": "A list of steps in the style of T3 Code's tool activity log.",
+      "properties": {
+        "component": {
+          "const": "Activity"
+        },
+        "items": {
+          "type": "array",
+          "description": "Steps, top to bottom.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string",
+                "description": "What happened."
+              },
+              "icon": {
+                "type": "string",
+                "enum": [
+                  "bot",
+                  "brain",
+                  "browser",
+                  "check",
+                  "list-todo",
+                  "circle-alert",
+                  "code",
+                  "eye",
+                  "globe",
+                  "hammer",
+                  "message-circle",
+                  "search",
+                  "square-pen",
+                  "terminal",
+                  "pull-request",
+                  "wrench",
+                  "x",
+                  "zap"
+                ],
+                "description": "Glyph for the step.",
+                "default": "check"
+              },
+              "detail": {
+                "type": "string",
+                "description": "Optional trailing muted text, such as a count or duration."
+              },
+              "failed": {
+                "type": "boolean",
+                "description": "Marks the step as failed."
+              }
+            },
+            "required": ["label"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["component", "items"],
+      "unevaluatedProperties": false
+    },
+    "Table": {
+      "type": "object",
+      "description": "A table in T3 Code's markdown table style.",
+      "properties": {
+        "component": {
+          "const": "Table"
+        },
+        "columns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Column headers."
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "description": "Rows of cell text, one array per row."
+        }
+      },
+      "required": ["component", "columns", "rows"],
+      "unevaluatedProperties": false
+    },
+    "Choice": {
+      "type": "object",
+      "description": "Lets the user pick one or more options. Bind value to a data path so a Button action can send it.",
+      "properties": {
+        "component": {
+          "const": "Choice"
+        },
+        "options": {
+          "type": "array",
+          "description": "Options to pick from.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string",
+                "description": "Shown text."
+              },
+              "value": {
+                "type": "string",
+                "description": "Stable value sent back."
+              }
+            },
+            "required": ["label", "value"],
+            "additionalProperties": false
+          }
+        },
+        "value": {
+          "$ref": "common_types.json#/$defs/DynamicStringList",
+          "description": "Selected values."
+        },
+        "label": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Optional label above the options."
+        },
+        "multiple": {
+          "type": "boolean",
+          "description": "Allow more than one selection.",
+          "default": false
+        },
+        "style": {
+          "type": "string",
+          "enum": ["chips", "list"],
+          "description": "Segmented chips or a vertical list of radios or checkboxes.",
+          "default": "chips"
+        }
+      },
+      "required": ["component", "options", "value"],
+      "unevaluatedProperties": false
+    },
+    "Switch": {
+      "type": "object",
+      "description": "An on/off setting row, as in T3 Code's settings.",
+      "properties": {
+        "component": {
+          "const": "Switch"
+        },
+        "label": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Setting name."
+        },
+        "value": {
+          "$ref": "common_types.json#/$defs/DynamicBoolean",
+          "description": "On or off."
+        },
+        "description": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Optional muted explanation."
+        }
+      },
+      "required": ["component", "label", "value"],
+      "unevaluatedProperties": false
+    },
+    "Field": {
+      "type": "object",
+      "description": "A text input. Bind value to a data path so a Button action can send it.",
+      "properties": {
+        "component": {
+          "const": "Field"
+        },
+        "label": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Label above the input."
+        },
+        "value": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Current text."
+        },
+        "placeholder": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Hint shown when empty."
+        },
+        "multiline": {
+          "type": "boolean",
+          "description": "Use a multi-line text area.",
+          "default": false
+        }
+      },
+      "required": ["component", "label", "value"],
+      "unevaluatedProperties": false
+    },
+    "Button": {
+      "type": "object",
+      "description": "Sends an action back to the agent as the user's next message.",
+      "properties": {
+        "component": {
+          "const": "Button"
+        },
+        "label": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Button text."
+        },
+        "action": {
+          "$ref": "common_types.json#/$defs/Action"
+        },
+        "tone": {
+          "type": "string",
+          "enum": ["primary", "secondary", "outline", "ghost", "destructive"],
+          "description": "Button style. Use primary for the main choice.",
+          "default": "outline"
+        }
+      },
+      "required": ["component", "label", "action"],
+      "unevaluatedProperties": false
+    }
+  },
+  "functions": {},
+  "$defs": {
+    "anyComponent": {
+      "oneOf": [
+        {
+          "$ref": "#/components/Panel"
+        },
+        {
+          "$ref": "#/components/Stack"
+        },
+        {
+          "$ref": "#/components/Text"
+        },
+        {
+          "$ref": "#/components/CodeBlock"
+        },
+        {
+          "$ref": "#/components/Diff"
+        },
+        {
+          "$ref": "#/components/Command"
+        },
+        {
+          "$ref": "#/components/File"
+        },
+        {
+          "$ref": "#/components/DiffStat"
+        },
+        {
+          "$ref": "#/components/Badge"
+        },
+        {
+          "$ref": "#/components/Alert"
+        },
+        {
+          "$ref": "#/components/Keys"
+        },
+        {
+          "$ref": "#/components/Activity"
+        },
+        {
+          "$ref": "#/components/Table"
+        },
+        {
+          "$ref": "#/components/Choice"
+        },
+        {
+          "$ref": "#/components/Switch"
+        },
+        {
+          "$ref": "#/components/Field"
+        },
+        {
+          "$ref": "#/components/Button"
+        }
+      ],
+      "discriminator": {
+        "propertyName": "component"
+      }
+    },
+    "anyFunction": {
+      "oneOf": []
+    }
+  }
+}

@@ -17,3 +17,15 @@ Some MCP servers return an interactive app with their tool results, following th
 Apps follow your theme. An app can call tools on its own server and post a message to the thread; T3 Code asks first unless the server marks the tool as read-only, and it asks before every message. On mobile, an app also asks before opening a link, and T3 Code asks before saving a file an app offers. An app stays viewable after its agent stops, but using it needs the agent of the thread that created it running, so send a message in that thread first if the app says it is unavailable. An app that navigates away from its own page is stopped.
 
 An app can open full screen right after you tap or click in it. On web and desktop, a tap in the app within five seconds of a click or key press elsewhere in T3 Code doesn't count, so tap it again after that. Use the button in its top corner, or press Escape outside the app, to return it to the thread. Anything else that needs your attention, such as an approval, also returns it to the thread. On mobile, full screen opens the app again in its own screen, so anything the app does not save itself starts over. An app can also keep the agent informed of what you did in it, such as a filter you picked; T3 Code sends the latest note from each app with your next message.
+
+## Interactive replies (A2UI)
+
+An agent can answer with an interactive card built from T3 Code's own components: a diff with its file chip and line counts, a highlighted code block, a command, a tool activity list, a table, an alert, and inputs such as chips, checkboxes, switches, and text fields. It writes the card in A2UI Express format, either as an `a2ui` code block or between `<a2ui>` and `</a2ui>` tags, and T3 Code draws it right in the message, so a card from any agent, local or remote, looks like the rest of the app. The full list is Panel, Stack, Text, CodeBlock, Diff, Command, File, DiffStat, Badge, Alert, Keys, Activity, Table, Choice, Switch, Field, and Button.
+
+Agents write better cards when they know the components. Agents running in T3 Code can call the `a2ui_guide` tool to get them. For other agents, or to make it a habit, install the optional [t3code-cards skill](skills/t3code-cards/SKILL.md) the way your agent installs skills.
+
+Clicking a button sends your choice back as a new message in the thread, along with anything you typed or ticked in the card. The message shows the action name and its values in a code block, and the agent reads it like any other message. It queues behind the current turn if the agent is still working.
+
+Cards are drawn in your theme and can't run scripts or load pages. If a card is invalid, uses a component T3 Code doesn't provide, or is very large, you see the plain code block instead. A card also stays a code block while the agent is still writing it, wherever replies can't be sent back, and in the mobile app for now.
+
+Each card belongs to the message that contains it and sends one choice; after that it dims and stops taking input. When the agent sends a card with the same name later, it appears as a new card.

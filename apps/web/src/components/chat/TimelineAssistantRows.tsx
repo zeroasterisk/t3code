@@ -9,6 +9,7 @@ import { Button } from "../ui/button";
 import { ProposedPlanCard } from "./ProposedPlanCard";
 import { HtmlRenderFrame } from "./HtmlRenderFrame";
 import { McpAppFrame } from "./McpAppFrame";
+import { A2uiCardScope } from "./MarkdownA2uiBlock";
 import { checkpointFileTotals } from "@t3tools/client-runtime/state/thread-checkpoints";
 import { ChangedFilesCard } from "./ChangedFilesTree";
 import { useFileContextMenuHandler } from "../../fileContextMenu";
@@ -46,18 +47,21 @@ export function AssistantTimelineRow({ row }: { row: Extract<TimelineRow, { kind
             request={ctx.citationRequest}
             listRef={ctx.listRef}
           >
-            <ChatMarkdown
-              text={messageText}
-              cwd={ctx.markdownCwd}
-              threadRef={ctx.threadRef ?? undefined}
-              isStreaming={Boolean(row.message.streaming)}
-              lineBreaks={shouldPreserveAssistantLineBreaks(messageText)}
-              skills={ctx.skills}
-              headingLevelOffset={MESSAGE_HEADING_LEVEL}
-              onUseArtifactTemplate={ctx.onUseArtifactTemplate}
-              onRunShellCommand={ctx.onRunShellCommand}
-              onImageExpand={ctx.onImageExpand}
-            />
+            <A2uiCardScope value={row.message.id}>
+              <ChatMarkdown
+                text={messageText}
+                cwd={ctx.markdownCwd}
+                threadRef={ctx.threadRef ?? undefined}
+                isStreaming={Boolean(row.message.streaming)}
+                lineBreaks={shouldPreserveAssistantLineBreaks(messageText)}
+                skills={ctx.skills}
+                headingLevelOffset={MESSAGE_HEADING_LEVEL}
+                onUseArtifactTemplate={ctx.onUseArtifactTemplate}
+                onRunShellCommand={ctx.onRunShellCommand}
+                onSendAppMessage={ctx.onSendAppMessage}
+                onImageExpand={ctx.onImageExpand}
+              />
+            </A2uiCardScope>
           </AssistantCitationSource>
         </div>
         {ctx.onOpenTurnDiff ? (

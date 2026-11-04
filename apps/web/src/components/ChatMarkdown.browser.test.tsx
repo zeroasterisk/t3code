@@ -554,3 +554,35 @@ describe("ChatMarkdown Windows file links", () => {
     }
   });
 });
+
+describe("ChatMarkdown a2ui fences", () => {
+  const fence = '```a2ui\nsurface("s")\nroot = Button("Go", Event("go"))\n```';
+  const onSendAppMessage = async () => {};
+
+  it.each([
+    ["fence", fence],
+    ["<a2ui> tags", '<a2ui>\nsurface("s")\nroot = Button("Go", Event("go"))\n</a2ui>'],
+  ])(
+    "renders a closed a2ui %s as an interactive surface when replies can be sent",
+    async (_form, source) => {
+      setup();
+      await using screen = await renderText(source, { onSendAppMessage });
+      await expect.element(screen.getByRole("button", { name: "Go" })).toBeVisible();
+      expect(screen.container.querySelector("pre")).toBeNull();
+    },
+  );
+
+  it("keeps the plain code block without a send handler or while the fence is still streaming", async () => {
+    setup();
+    await using plain = await renderText(fence);
+    expect(plain.container.querySelector("pre")).not.toBeNull();
+    expect(plain.container.querySelector("[data-testid=a2ui-surface]")).toBeNull();
+
+    await using streaming = await renderText(fence.slice(0, -4), {
+      onSendAppMessage,
+      isStreaming: true,
+    });
+    expect(streaming.container.querySelector("pre")).not.toBeNull();
+    expect(streaming.container.querySelector("[data-testid=a2ui-surface]")).toBeNull();
+  });
+});

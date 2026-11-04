@@ -535,6 +535,10 @@
       "types": "./src/a2uiMessage.ts",
       "import": "./src/a2uiMessage.ts"
     },
+    "./a2uiSkill": {
+      "types": "./src/a2uiSkill.ts",
+      "import": "./src/a2uiSkill.ts"
+    },
     "./markdownMath": {
       "types": "./src/markdownMath.ts",
       "import": "./src/markdownMath.ts"

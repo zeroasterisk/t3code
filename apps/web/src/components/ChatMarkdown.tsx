@@ -97,6 +97,7 @@ import { parseThreadLinkHref } from "@t3tools/shared/threadLinks";
 import { AssistantCitationChip } from "./chat/AssistantCitationChip";
 import { MarkdownThreadLink } from "./chat/MarkdownThreadLink";
 import { mathKind } from "@t3tools/shared/markdownMath";
+import { A2UI_FENCE_LANGUAGE, a2uiTagsToFences } from "@t3tools/shared/a2uiMessage";
 import remarkMath from "remark-math";
 import {
   artifactTemplateFromHastProperties,
@@ -194,6 +195,7 @@ import { MarkdownCodeBlock, SuspenseShikiCodeBlock } from "./chat/MarkdownCodeBl
 import { createMarkdownRenderer } from "./chat/markdownRenderer";
 import { splitMarkdownBlocks } from "./chat/markdownStreamBlocks";
 import { MarkdownMermaidCodeBlock } from "./chat/MarkdownMermaidCodeBlock";
+import { MarkdownA2uiBlock } from "./chat/MarkdownA2uiBlock";
 import { MarkdownTable } from "./chat/MarkdownTable";
 import { MarkdownDetails } from "./chat/MarkdownDetails";
 import {
@@ -240,6 +242,8 @@ interface ChatMarkdownProps {
   parseRawHtml?: boolean;
   onUseArtifactTemplate?: ((template: CodexArtifactTemplate) => void) | undefined;
   onRunShellCommand?: ((command: string) => void) | undefined;
+  /** Lets `a2ui` fences render as interactive surfaces whose actions reply as a user message. */
+  onSendAppMessage?: ((text: string) => Promise<void>) | undefined;
   imageBaseDir?: string | undefined;
   workspaceMutationId?: string | null | undefined;
   onImageExpand?: ((preview: ExpandedImagePreview) => void) | undefined;
@@ -492,6 +496,7 @@ function useChatMarkdownState({
   skills = EMPTY_MARKDOWN_SKILLS,
   onUseArtifactTemplate,
   onRunShellCommand,
+  onSendAppMessage,
   imageBaseDir,
   workspaceMutationId,
   onImageExpand,
@@ -910,6 +915,7 @@ function useChatMarkdownState({
     onTaskListChange,
     onUseArtifactTemplate,
     onRunShellCommand,
+    onSendAppMessage,
     openChangeRequestLink,
     openDeferredMarkdownLink,
     openExternalLinkInPreview,
@@ -1576,6 +1582,7 @@ const CHAT_MARKDOWN_COMPONENTS = {
       expandMedia,
       isStreaming,
       onRunShellCommand,
+      onSendAppMessage,
       inline,
       mathEnabled,
     } = use(ChatMarkdownRendererContext);
@@ -1635,7 +1642,7 @@ const CHAT_MARKDOWN_COMPONENTS = {
         </MarkdownMermaidCodeBlock>
       );
     }
-    return (
+    const plainCodeBlock = (
       <MarkdownCodeBlock
         code={codeBlock.code}
         language={language}
@@ -1651,6 +1658,22 @@ const CHAT_MARKDOWN_COMPONENTS = {
         {highlightedCode}
       </MarkdownCodeBlock>
     );
+    if (
+      language === A2UI_FENCE_LANGUAGE &&
+      onSendAppMessage &&
+      (!isStreaming || isClosedCodeFence(node, text, codeBlock.code))
+    ) {
+      return (
+        <MarkdownA2uiBlock
+          source={codeBlock.code}
+          theme={resolvedTheme}
+          onSendMessage={onSendAppMessage}
+        >
+          {plainCodeBlock}
+        </MarkdownA2uiBlock>
+      );
+    }
+    return plainCodeBlock;
   },
 } satisfies Components;
 
@@ -1726,7 +1749,7 @@ const MarkdownSource = memo(function MarkdownSource({
 });
 
 function ChatMarkdown({
-  text,
+  text: authoredText,
   className,
   inline = false,
   lineBreaks = false,
@@ -1734,6 +1757,7 @@ function ChatMarkdown({
   extraRemarkPlugins = EMPTY_REMARK_PLUGINS,
   ...props
 }: ChatMarkdownProps) {
+  const text = a2uiTagsToFences(authoredText);
   const { componentState, handleCopy, markdownRef, localMediaPreview, closeLocalMediaPreview } =
     useChatMarkdownState({ text, inline, ...props });
   // Streaming re-renders only the last block; offsets for task edits need the whole text.

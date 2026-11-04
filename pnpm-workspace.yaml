@@ -282,6 +282,8 @@ peerDependencyRules:
     "@react-navigation/native-stack>react-native-screens": "*"
     # ws 7 (React Native dev tooling) only calls isValidUTF8, unchanged in v6.
     "ws@7>utf-8-validate": "6"
+    # @a2ui/react 0.15 pairs @a2ui/markdown-it 0.2.2, which still declares web_core ^0.14.
+    "@a2ui/markdown-it>@a2ui/web_core": "0.15.0"
 
 # pnpm 12 links agent skills that dependencies ship into .claude/skills once
 # approved. We curate our own skills, so deny these to keep installs quiet.

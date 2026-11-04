@@ -178,6 +178,8 @@ export default defineConfig({
       "*.tsbuildinfo",
       "**/routeTree.gen.ts",
       "**/*.graphql.ts",
+      // Generated from the A2UI catalog; a2uiSkill.test.ts compares it byte for byte.
+      "docs/user/skills/t3code-cards/SKILL.md",
       "packages/source-control-github/schema/**",
       "apps/server/schema/**",
       "apps/mobile/android/**",
