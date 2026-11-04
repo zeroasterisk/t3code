@@ -6,12 +6,15 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as NetService from "@t3tools/shared/Net";
 import * as RelayClient from "@t3tools/shared/relayClient";
 import { assert, it } from "@effect/vitest";
+import * as Clock from "effect/Clock";
 import * as ConfigProvider from "effect/ConfigProvider";
 import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as TestClock from "effect/testing/TestClock";
 import * as TestConsole from "effect/testing/TestConsole";
 import { Command } from "effect/cli";
 
@@ -20,7 +23,7 @@ import {
   makePersistedServerRuntimeState,
   persistServerRuntimeState,
 } from "../serverRuntimeState.ts";
-import { acquireRelayClientForLink } from "./connect.ts";
+import { acquireRelayClientForLink, waitForReachabilityWith } from "./connect.ts";
 
 const managedExecutable = {
   status: "available",
@@ -161,4 +164,43 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer, NetService.layer))
       }),
     );
   },
+);
+
+it.effect("keeps checking while a new tunnel's DNS is still propagating", () =>
+  Effect.gen(function* () {
+    const dnsFailed = {
+      status: "unreachable",
+      checkedAt: "2026-11-04T00:00:00.000Z",
+      cause: "dns_failed",
+      reason: "The T3 Connect address does not resolve from this machine.",
+      hint: null,
+      fix: "Check the DNS settings on this machine or its VPN.",
+    } as const;
+    const reachable = {
+      status: "reachable",
+      checkedAt: "2026-11-04T00:01:30.000Z",
+      readyConnections: 4,
+      protocol: "quic",
+    } as const;
+    // Live from the 90 second mark, past the 60 second wait for anything else.
+    const check = () =>
+      Clock.currentTimeMillis.pipe(Effect.map((now) => (now < 90_000 ? dnsFailed : reachable)));
+    // The wait sets process.exitCode when it gives up; never let that leak into other tests.
+    const exitCode = process.exitCode;
+    process.exitCode = undefined;
+    yield* Effect.gen(function* () {
+      const waiting = yield* Effect.forkChild(waitForReachabilityWith(check));
+      yield* Effect.forEach(Array.from({ length: 19 }), () => TestClock.adjust("5 seconds"), {
+        discard: true,
+      });
+      yield* Fiber.join(waiting);
+      assert.isUndefined(process.exitCode);
+    }).pipe(
+      Effect.ensuring(
+        Effect.sync(() => {
+          process.exitCode = exitCode;
+        }),
+      ),
+    );
+  }),
 );

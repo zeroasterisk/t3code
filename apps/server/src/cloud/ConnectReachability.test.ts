@@ -1,4 +1,5 @@
 // @effect-diagnostics nodeBuiltinImport:off - reads the user guide to check its anchors.
+import * as NodeEvents from "node:events";
 import * as NodeFS from "node:fs";
 import * as NodeNet from "node:net";
 
@@ -10,10 +11,11 @@ import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import * as Queue from "effect/Queue";
 import * as Stream from "effect/Stream";
 import * as TestClock from "effect/testing/TestClock";
-import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http";
+import { HttpClient, HttpClientError, HttpClientRequest, HttpClientResponse } from "effect/http";
 import { ChildProcessSpawner } from "effect/process";
 import { vi } from "vite-plus/test";
 
@@ -321,17 +323,20 @@ describe("ConnectReachability stale connector recovery", () => {
       using _connect = mockEdgeConnect();
       const restarts = yield* Queue.unbounded<number>();
       let status = 530;
-      let requests = 0;
+      const requestTimes: Array<number> = [];
       const layer = reachabilityLayer(
-        Effect.sync(() => {
-          requests += 1;
-          return { status, body: { cloudflareError: 1033 } };
-        }),
+        Clock.currentTimeMillis.pipe(
+          Effect.map((now) => {
+            requestTimes.push(now);
+            return { status, body: { cloudflareError: 1033 } };
+          }),
+        ),
         (pid, stillDead) =>
           stillDead.pipe(Effect.tap((dead) => (dead ? Queue.offer(restarts, pid) : Effect.void))),
       );
       yield* Effect.gen(function* () {
         const reachability = yield* ConnectReachability.ConnectReachability;
+        const startedAt = yield* Clock.currentTimeMillis;
         yield* reachability.check;
         yield* TestClock.adjust(Duration.minutes(1));
         status = 200;
@@ -339,9 +344,9 @@ describe("ConnectReachability stale connector recovery", () => {
         status = 530;
         yield* reachability.check;
 
-        const before = requests;
+        // Settle-window rechecks still run; only the old streak's confirm at 2 minutes must not.
         yield* TestClock.adjust(Duration.minutes(1));
-        expect(requests).toBe(before);
+        expect(requestTimes).not.toContain(startedAt + Duration.toMillis(Duration.minutes(2)));
         yield* TestClock.adjust(Duration.minutes(1));
         expect(yield* Queue.take(restarts)).toBe(connected.pid);
       }).pipe(Effect.provide(layer));
@@ -374,6 +379,112 @@ describe("ConnectReachability stale connector recovery", () => {
         yield* TestClock.adjust(Duration.seconds(2));
         expect(yield* Fiber.join(check)).toMatchObject({ cause: "no_connector" });
       }).pipe(Effect.provide(layer));
+    }),
+  );
+});
+
+describe("ConnectReachability rechecks", () => {
+  // A brand-new tunnel hostname is probed seconds after it is created. Resolvers cache the miss,
+  // so the first probes fail with DNS errors and a later one succeeds.
+  const harness = Effect.fn("test.connect_reachability_harness")(function* (
+    missesBeforeLive: number,
+  ) {
+    // The edge test dials Cloudflare for real; refuse the connection instead.
+    yield* Effect.acquireRelease(
+      Effect.sync(() =>
+        vi.spyOn(NodeNet, "connect").mockImplementation(() => {
+          const socket = Object.assign(new NodeEvents.EventEmitter(), {
+            setTimeout: () => socket,
+            destroy: () => socket,
+          });
+          queueMicrotask(() => socket.emit("error", new Error("ECONNREFUSED")));
+          return socket as unknown as NodeNet.Socket;
+        }),
+      ),
+      (spy) => Effect.sync(() => spy.mockRestore()),
+    );
+    const readiness = yield* Queue.unbounded<void>();
+    const probes = { count: 0 };
+    const httpClient = HttpClient.make((request) =>
+      Effect.suspend(() => {
+        probes.count += 1;
+        return probes.count <= missesBeforeLive
+          ? Effect.fail(
+              new HttpClientError.HttpClientError({
+                reason: new HttpClientError.TransportError({
+                  request,
+                  cause: Object.assign(new Error("getaddrinfo ENOTFOUND"), { code: "ENOTFOUND" }),
+                }),
+              }),
+            )
+          : Effect.succeed(
+              HttpClientResponse.fromWeb(request, new Response(null, { status: 200 })),
+            );
+      }),
+    );
+    const context = yield* Layer.build(
+      ConnectReachability.layer.pipe(
+        Layer.provide(
+          Layer.mergeAll(
+            Layer.mock(ManagedEndpointRuntime.CloudManagedEndpointRuntime)({
+              inspectConnector: Effect.succeed(connected),
+              readinessChanged: Stream.fromQueue(readiness),
+            }),
+            Layer.mock(ServerSecretStore.ServerSecretStore)({
+              get: () => Effect.succeedSome(new Uint8Array()),
+            }),
+            Layer.succeed(HttpClient.HttpClient, httpClient),
+            Layer.succeed(
+              ChildProcessSpawner.ChildProcessSpawner,
+              ChildProcessSpawner.make(() => Effect.die("unused")),
+            ),
+          ),
+        ),
+      ),
+    );
+    const reachability = yield* ConnectReachability.ConnectReachability.pipe(
+      Effect.provide(context),
+    );
+    yield* Queue.offer(readiness, undefined);
+    return { reachability, probes };
+  });
+
+  // Fibers woken by one tick must register their next sleep before the clock moves again.
+  const tick = (times: number) =>
+    Effect.forEach(Array.from({ length: times }), () => TestClock.adjust("10 seconds"), {
+      discard: true,
+    });
+
+  it.effect(
+    "sees a tunnel whose DNS appears after a few seconds without waiting five minutes",
+    () =>
+      Effect.gen(function* () {
+        const { reachability, probes } = yield* harness(2);
+        yield* TestClock.adjust("3 seconds");
+        expect(yield* reachability.latest).toMatchObject(
+          Option.some({ status: "unreachable", cause: "dns_failed" }),
+        );
+        yield* TestClock.adjust("5 seconds");
+        yield* TestClock.adjust("5 seconds");
+        expect(yield* reachability.latest).toMatchObject(Option.some({ status: "reachable" }));
+        expect(probes.count).toBe(3);
+      }),
+  );
+
+  it.effect("stops the quick rechecks once the settle window has passed", () =>
+    Effect.gen(function* () {
+      const { reachability, probes } = yield* harness(Number.POSITIVE_INFINITY);
+      yield* TestClock.adjust("3 seconds");
+      yield* tick(21);
+      const afterWindow = probes.count;
+      expect(afterWindow).toBeGreaterThan(3);
+      expect(afterWindow).toBeLessThan(20);
+      // Only the regular five-minute recheck is left.
+      yield* tick(9);
+      expect(probes.count).toBe(afterWindow + 1);
+      expect(yield* reachability.latest).toMatchObject(
+        Option.some({ status: "unreachable", cause: "dns_failed" }),
+      );
     }),
   );
 });

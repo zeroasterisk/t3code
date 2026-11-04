@@ -36,7 +36,7 @@ import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import * as BootService from "../cloud/bootService.ts";
 import * as CliState from "../cloud/CliState.ts";
 import * as CliTokenManager from "../cloud/CliTokenManager.ts";
-import { formatReachabilityFailure } from "../cloud/ConnectReachability.ts";
+import { formatReachabilityFailure, isSettlingCause } from "../cloud/ConnectReachability.ts";
 import { filterRelayResponse } from "../cloud/relayResponse.ts";
 import {
   CLOUD_LINK_REVOKED,
@@ -334,6 +334,8 @@ const runLiveCloudUnlink = Effect.fn("cloud.cli.run_live_unlink")(function* () {
 // One check probes the endpoint, the tunnel edge, and Tailscale, each with its own timeout.
 const CLOUD_CLI_REACHABILITY_TIMEOUT = Duration.seconds(30);
 const CLOUD_CLI_REACHABILITY_WAIT = Duration.seconds(60);
+// A new tunnel's DNS can take a while to appear; wait longer while that is the only problem.
+const CLOUD_CLI_REACHABILITY_SETTLE_WAIT = Duration.minutes(3);
 const CLOUD_CLI_REACHABILITY_RETRY = Duration.seconds(5);
 
 /** Asks the running server to check T3 Connect now. `null` when no server answers. */
@@ -370,18 +372,26 @@ function formatAlertBox(text: string): string {
  * Waits for the server that `t3 connect` just started to prove other devices
  * can reach it, so a broken tunnel fails setup instead of looking green.
  */
-export const waitForReachability = Effect.fn("cloud.cli.wait_for_reachability")(function* () {
+export const waitForReachabilityWith = Effect.fn("cloud.cli.wait_for_reachability")(function* <R>(
+  check: () => Effect.Effect<EnvironmentConnectReachability | null, never, R>,
+) {
   yield* Console.log("Checking T3 Connect...");
-  const deadline =
-    (yield* Clock.currentTimeMillis) + Duration.toMillis(CLOUD_CLI_REACHABILITY_WAIT);
+  const start = yield* Clock.currentTimeMillis;
   let last: EnvironmentConnectReachability | null = null;
+  let announcedSettling = false;
   while (true) {
-    last = (yield* checkLiveReachability()) ?? last;
+    last = (yield* check()) ?? last;
     if (last?.status === "reachable") {
       yield* Console.log("✓ T3 Connect is reachable.");
       return;
     }
-    if ((yield* Clock.currentTimeMillis) >= deadline) break;
+    const settling = last?.status === "unreachable" && isSettlingCause(last.cause);
+    if (settling && !announcedSettling) {
+      announcedSettling = true;
+      yield* Console.log("  The T3 Connect address is still propagating. Retrying...");
+    }
+    const wait = settling ? CLOUD_CLI_REACHABILITY_SETTLE_WAIT : CLOUD_CLI_REACHABILITY_WAIT;
+    if ((yield* Clock.currentTimeMillis) >= start + Duration.toMillis(wait)) break;
     yield* Effect.sleep(CLOUD_CLI_REACHABILITY_RETRY);
   }
   yield* Console.error(
@@ -395,6 +405,8 @@ export const waitForReachability = Effect.fn("cloud.cli.wait_for_reachability")(
     process.exitCode = 1;
   });
 });
+
+export const waitForReachability = () => waitForReachabilityWith(checkLiveReachability);
 
 type RelayUnlinkResult =
   | { readonly status: "not-authenticated" }

@@ -40,6 +40,11 @@ const RECHECK_INTERVAL = Duration.minutes(5);
 // lasts, and wait longer after each restart that did not help.
 const DEAD_CONNECTOR_RESTART_AFTER = Duration.minutes(2);
 const DEAD_CONNECTOR_RESTART_AFTER_MAX = Duration.hours(1);
+// A tunnel hostname minted seconds ago is often not in DNS or at the edge yet, and resolvers
+// cache the miss. Look again soon, backing off from 5s to 1m, instead of waiting out RECHECK_INTERVAL.
+const SETTLE_WINDOW = Duration.minutes(3);
+const SETTLE_RECHECK_MIN = Duration.seconds(5);
+const SETTLE_RECHECK_MAX = Duration.minutes(1);
 
 export type EndpointProbe =
   | { readonly kind: "status"; readonly status: number; readonly cloudflareError?: string }
@@ -55,6 +60,10 @@ export interface ReachabilityFacts {
 }
 
 type Unreachable = Extract<EnvironmentConnectReachability, { status: "unreachable" }>;
+
+/** Causes a brand-new tunnel shows until DNS and the edge catch up. */
+export const isSettlingCause = (cause: Unreachable["cause"]) =>
+  cause === "dns_failed" || cause === "no_connector";
 
 function exitNodeHint(exitNode: TailscaleExitNode | null): string | null {
   if (!exitNode) return null;
@@ -235,6 +244,11 @@ const make = Effect.gen(function* () {
     restartAfterMillis: Duration.toMillis(DEAD_CONNECTOR_RESTART_AFTER),
     restartOrder: 0,
   });
+  // When the current run of settling results began, and whether it was reported as an error yet.
+  const settlingRef = yield* Ref.make<{
+    readonly since: number;
+    readonly escalated: boolean;
+  } | null>(null);
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const scope = yield* Scope.Scope;
   const readExitNode = readTailscaleExitNode.pipe(
@@ -363,6 +377,39 @@ const make = Effect.gen(function* () {
     );
   });
 
+  /** Tracks a run of DNS/edge misses and queues a quick recheck while the tunnel may still settle. */
+  const trackSettling = Effect.fn("ConnectReachability.trackSettling")(function* (
+    order: number,
+    result: EnvironmentConnectReachability,
+  ) {
+    const now = yield* Clock.currentTimeMillis;
+    const settlingCause = result.status === "unreachable" && isSettlingCause(result.cause);
+    const { active, escalate, elapsed } = yield* Ref.modify(settlingRef, (state) => {
+      if (!settlingCause) return [{ active: false, escalate: false, elapsed: 0 }, null];
+      const since = state?.since ?? now;
+      const elapsed = now - since;
+      const active = elapsed < Duration.toMillis(SETTLE_WINDOW);
+      const escalate = !active && !state?.escalated;
+      return [
+        { active, escalate, elapsed },
+        { since, escalated: state?.escalated || escalate },
+      ];
+    });
+    if (active) {
+      // A newer check (this order is stale by then) queues its own recheck.
+      const delay = Math.min(
+        Math.max(elapsed, Duration.toMillis(SETTLE_RECHECK_MIN)),
+        Duration.toMillis(SETTLE_RECHECK_MAX),
+      );
+      yield* Effect.sleep(Duration.millis(delay)).pipe(
+        Effect.andThen(Ref.get(checkCounter)),
+        Effect.flatMap((latestOrder) => (latestOrder === order ? check : Effect.void)),
+        Effect.forkIn(scope),
+      );
+    }
+    return { active, escalate };
+  });
+
   const check: Effect.Effect<EnvironmentConnectReachability> = Effect.gen(function* () {
     const order = yield* Ref.updateAndGet(checkCounter, (count) => count + 1);
     const facts = yield* gatherFacts;
@@ -386,6 +433,7 @@ const make = Effect.gen(function* () {
       );
       yield* Effect.sleep(started.after).pipe(Effect.andThen(confirm), Effect.forkIn(scope));
     }
+    const settling = yield* trackSettling(order, result);
     const changed = Option.match(previous, {
       onNone: () => true,
       onSome: ({ result: last }) =>
@@ -394,13 +442,20 @@ const make = Effect.gen(function* () {
           result.status === "unreachable" &&
           last.cause !== result.cause),
     });
-    if (!changed || (result.status === "unreachable" && result.cause === "not_linked")) {
+    if (
+      !(changed || settling.escalate) ||
+      (result.status === "unreachable" && result.cause === "not_linked")
+    ) {
       return result;
     }
     if (result.status === "unreachable") {
       // A connector that has not connected yet is usually still starting; the
       // runtime restarts it, and an unreachable edge is reported as its own cause.
-      const log = result.cause === "connector_not_ready" ? Effect.logWarning : Effect.logError;
+      // A fresh tunnel's DNS is the same until the settle window passes.
+      const log =
+        result.cause === "connector_not_ready" || settling.active
+          ? Effect.logWarning
+          : Effect.logError;
       yield* log(`\n${formatReachabilityFailure(result)}`).pipe(
         Effect.annotateLogs({ cause: result.cause }),
       );
