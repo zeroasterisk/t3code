@@ -531,6 +531,10 @@
       "types": "./src/PtyAdapter.ts",
       "import": "./src/PtyAdapter.ts"
     },
+    "./a2uiMessage": {
+      "types": "./src/a2uiMessage.ts",
+      "import": "./src/a2uiMessage.ts"
+    },
     "./markdownMath": {
       "types": "./src/markdownMath.ts",
       "import": "./src/markdownMath.ts"
