@@ -447,6 +447,10 @@
       "types": "./src/codexFileCitations.ts",
       "import": "./src/codexFileCitations.ts"
     },
+    "./a2uiMessage": {
+      "types": "./src/a2uiMessage.ts",
+      "import": "./src/a2uiMessage.ts"
+    },
     "./codexMarkdownDirectives": {
       "types": "./src/codexMarkdownDirectives.ts",
       "import": "./src/codexMarkdownDirectives.ts"
