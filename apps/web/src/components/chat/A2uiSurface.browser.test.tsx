@@ -52,7 +52,7 @@ describe("A2uiSurface", () => {
   it("keeps a sent card's values and sent state when its message re-mounts", async () => {
     const onSendAppMessage = vi.fn(async (_text: string) => {});
     const card = () => (
-      <A2uiCardScope value="message-1">
+      <A2uiCardScope value={{ threadKey: undefined, messageId: "message-1", createdAt: "" }}>
         <MarkdownA2uiBlock source={TRIAGE} theme="light" onSendMessage={onSendAppMessage}>
           {PLAIN}
         </MarkdownA2uiBlock>
@@ -66,6 +66,51 @@ describe("A2uiSurface", () => {
     await screen.rerender(card());
     await expect.element(screen.getByTestId("a2ui-surface")).toHaveAttribute("inert");
     expect(screen.container.querySelector("input")?.value).toBe("ship it");
+  });
+
+  it("keeps a live canvas interactive, updates it in place, and sends its data model", async () => {
+    const onSendAppMessage = vi.fn(async (_text: string) => {});
+    const scope = (messageId: string, createdAt: string) => ({
+      threadKey: "thread-canvas",
+      messageId,
+      createdAt,
+    });
+    const block = (source: string) => (
+      <MarkdownA2uiBlock source={source} theme="light" onSendMessage={onSendAppMessage}>
+        {PLAIN}
+      </MarkdownA2uiBlock>
+    );
+    await using screen = await render(
+      <>
+        <A2uiCardScope value={scope("m1", "2026-01-01T00:00:01Z")}>
+          {block(`surface("release", sendDataModel=true)
+$/version = "1.5.0"
+version = Field("Version", $/version)
+draft = Button("Draft notes", Event("draft"))
+root = Panel([version, draft], title="Release 1.5.0")`)}
+        </A2uiCardScope>
+        <A2uiCardScope value={scope("m2", "2026-01-01T00:00:02Z")}>
+          {block(`surface("release", update=true)
+$/version = "1.5.0-beta.1"`)}
+        </A2uiCardScope>
+      </>,
+      { router: false }, // Nothing here navigates.
+    );
+    await expect.element(screen.getByText("Updated Release 1.5.0")).toBeVisible();
+    await expect.element(screen.getByRole("textbox")).toHaveValue("1.5.0-beta.1");
+    await userEvent.click(screen.getByRole("button", { name: "Draft notes" }));
+    await vi.waitFor(() => expect(onSendAppMessage).toHaveBeenCalledTimes(1));
+    await userEvent.click(screen.getByRole("button", { name: "Draft notes" }));
+    await vi.waitFor(() => expect(onSendAppMessage).toHaveBeenCalledTimes(2));
+    expect(onSendAppMessage).toHaveBeenLastCalledWith(
+      a2uiActionMessage({
+        surfaceId: "release",
+        name: "draft",
+        sourceComponentId: "draft",
+        context: {},
+        dataModel: { version: "1.5.0-beta.1" },
+      }),
+    );
   });
 
   it.each([

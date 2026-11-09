@@ -572,6 +572,18 @@ describe("ChatMarkdown a2ui fences", () => {
     },
   );
 
+  it("shows an action block as a one-line receipt with its JSON behind the toggle", async () => {
+    setup();
+    await using screen = await renderText(
+      'ok\n\n```a2ui-action\n{"surfaceId":"triage","name":"apply","sourceComponentId":"apply","context":{}}\n```',
+    );
+    const receipt = screen.getByRole("button", { name: "Sent apply from triage" });
+    await expect.element(receipt).toBeVisible();
+    expect(screen.container.textContent).not.toContain('"sourceComponentId"');
+    await userEvent.click(receipt);
+    await expect.element(screen.getByText(/"sourceComponentId"/)).toBeVisible();
+  });
+
   it("keeps the plain code block without a send handler or while the fence is still streaming", async () => {
     setup();
     await using plain = await renderText(fence);

@@ -1,4 +1,4 @@
-import { ExpressFormat } from "@a2ui/agent";
+import { ExpressFormat, RendererState } from "@a2ui/agent";
 import { Catalog, MessageProcessor } from "@a2ui/web_core";
 import { A2UI_SKILL_MARKDOWN } from "@t3tools/shared/a2uiSkill";
 import { describe, expect, it } from "vite-plus/test";
@@ -19,12 +19,16 @@ describe("A2UI skill", () => {
   it("teaches an example the catalog accepts", () => {
     const api = Catalog.fromJson(t3CatalogJson);
     const catalog = new Catalog(api.id, api.protocolVersion, [...api.components.values()], []);
-    const parts = new ExpressFormat([api]).createParser().parseResponse(A2UI_SKILL_EXAMPLE);
+    // One renderer state across blocks, as a canvas host keeps, so the update applies.
+    const state = new RendererState([api]);
+    const parts = new ExpressFormat([api])
+      .createParser()
+      .parseResponse(A2UI_SKILL_EXAMPLE, { state });
     const processor = new MessageProcessor([catalog]);
     const errors = parts.flatMap((part) =>
       part.type === "a2ui" ? processor.processMessagesWithErrors(part.a2ui) : [],
     );
     expect(errors).toEqual([]);
-    expect(processor.getSurfaces().size).toBe(1);
+    expect([...processor.getSurfaces().keys()]).toEqual(["review", "release"]);
   });
 });

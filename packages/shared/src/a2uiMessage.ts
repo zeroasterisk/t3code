@@ -3,10 +3,18 @@ export interface A2uiAction {
   readonly name: string;
   readonly sourceComponentId: string;
   readonly context: Readonly<Record<string, unknown>>;
+  /** The surface's whole data model, sent for surfaces created with `sendDataModel=true`. */
+  readonly dataModel?: unknown;
+}
+
+export interface A2uiSurfaceState {
+  readonly surfaceId: string;
+  readonly dataModel: unknown;
 }
 
 export const A2UI_FENCE_LANGUAGE = "a2ui";
-const A2UI_ACTION_FENCE_LANGUAGE = "a2ui-action";
+export const A2UI_ACTION_FENCE_LANGUAGE = "a2ui-action";
+export const A2UI_STATE_FENCE_LANGUAGE = "a2ui-state";
 const A2UI_OPEN_TAG = "<a2ui>";
 const A2UI_CLOSE_TAG = "</a2ui>";
 const CODE_FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})/;
@@ -78,14 +86,28 @@ export function a2uiTagsToFences(markdown: string): string {
   return out.join("\n");
 }
 
+function fenced(language: string, payload: string): string {
+  const fence = fenceFor(payload);
+  return `${fence}${language}\n${payload}\n${fence}`;
+}
+
 /** User message a surface sends to the agent when the user acts on it. */
 export function a2uiActionMessage(action: A2uiAction): string {
-  const payload = JSON.stringify({
-    surfaceId: action.surfaceId,
-    name: action.name,
-    sourceComponentId: action.sourceComponentId,
-    context: action.context,
-  });
-  const fence = fenceFor(payload);
-  return `Applied ${action.name}.\n\n${fence}${A2UI_ACTION_FENCE_LANGUAGE}\n${payload}\n${fence}`;
+  return fenced(
+    A2UI_ACTION_FENCE_LANGUAGE,
+    JSON.stringify({
+      surfaceId: action.surfaceId,
+      name: action.name,
+      sourceComponentId: action.sourceComponentId,
+      context: action.context,
+      ...(action.dataModel === undefined ? {} : { dataModel: action.dataModel }),
+    }),
+  );
+}
+
+/** Appends the live canvases' current state, so the agent sees edits the user made by hand. */
+export function withA2uiState(text: string, states: ReadonlyArray<A2uiSurfaceState>): string {
+  if (states.length === 0) return text;
+  const block = fenced(A2UI_STATE_FENCE_LANGUAGE, JSON.stringify(states));
+  return text ? `${text}\n\n${block}` : block;
 }

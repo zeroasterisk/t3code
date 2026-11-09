@@ -24,8 +24,11 @@ An agent can answer with an interactive card built from T3 Code's own components
 
 Agents write better cards when they know the components. Agents running in T3 Code can call the `a2ui_guide` tool to get them. For other agents, or to make it a habit, install the optional [t3code-cards skill](skills/t3code-cards/SKILL.md) the way your agent installs skills.
 
-Clicking a button sends your choice back as a new message in the thread, along with anything you typed or ticked in the card. The message shows the action name and its values in a code block, and the agent reads it like any other message. It queues behind the current turn if the agent is still working.
+Clicking a button sends your choice back as a new message in the thread, along with anything you typed or ticked in the card. The message shows as a one-line receipt, such as "Sent apply from review"; expand it to see the values the agent received. It queues behind the current turn if the agent is still working.
 
 Cards are drawn in your theme and can't run scripts or load pages. If a card is invalid, uses a component T3 Code doesn't provide, or is very large, you see the plain code block instead. A card also stays a code block while the agent is still writing it, wherever replies can't be sent back, and in the mobile app for now.
 
-Each card belongs to the message that contains it and sends one choice; after that it dims and stops taking input. When the agent sends a card with the same name later, it appears as a new card.
+Agents use one of two patterns:
+
+- **A card** asks once. It sends one choice, then dims and stops taking input. To ask again, the agent sends a new card.
+- **A live canvas** is a durable artifact, such as a release plan you keep editing. It stays interactive, every button sends its full state, and the agent changes it in place; its reply shows an "Updated" receipt instead of a new card. If you edit a canvas and then type a message, T3 Code attaches the canvas's current state to that message, so the agent works from what you see.

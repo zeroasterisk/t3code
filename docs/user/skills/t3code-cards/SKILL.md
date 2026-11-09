@@ -160,9 +160,11 @@ Use these exact positional signatures to instantiate check rules or logic functi
 
 ## Catalog Instructions
 
-Compose replies from T3 Code's own components. Start with a Panel as root, use Stack for layout, and end with Buttons when the user should choose. Inputs (Choice, Switch, Field) only reach the agent through a Button action context, so bind each input's value to a data path and include those paths in the action context. A click arrives as the user's next message: a short line and an a2ui-action code block holding JSON with surfaceId, name, sourceComponentId, and context. A card sends one action, so send a new card to ask again.
+Compose replies from T3 Code's own components. Start with a Panel as root, use Stack for layout, and use Buttons when the user should act. Inputs (Choice, Switch, Field) only reach the agent with an action, so bind each input's value to a data path. Pick one of two patterns. A card asks once: give it a new surface id and put the paths you need in each Event's context; after one click it stops taking input, and you send a new card to ask again. A live canvas is a durable artifact the user keeps working in: create it with surface("id", sendDataModel=true). It stays interactive, every action carries its whole data model, and edits the user makes before typing a message arrive with that message. Change a canvas in place in a later reply with surface("id", update=true) followed only by data assignments or redefined components; do not send a new root. Your updates are what the canvas keeps: set the values from the user's edits that you accept, or they are lost when the thread reloads. A click arrives as the user's next message: an a2ui-action code block holding JSON with surfaceId, name, sourceComponentId, context, and, for a canvas, dataModel. Canvas edits arrive as an a2ui-state code block holding a JSON list of surfaceId and dataModel.
 
 ### Examples:
+
+A card that asks once:
 
 <a2ui>
 surface("review")
@@ -174,4 +176,19 @@ diff = Diff("""@@ -3,1 +3,3 @@
 scope = Choice([{label: "Patch only", value: "patch"}, {label: "Open a PR", value: "pr"}], $/scope, label="How should I land it?")
 apply = Button("Apply", Event("apply", {scope: $/scope}), tone="primary")
 root = Panel([diff, scope, Stack([apply, Button("Not now", Event("skip"), tone="ghost")], direction="horizontal", gap="small")], title="clamp() rejects inverted bounds")
+</a2ui>
+
+A live canvas, then a later reply that changes it in place:
+
+<a2ui>
+surface("release", sendDataModel=true)
+$/version = "1.5.0"
+$/npm = true
+root = Panel([Field("Version", $/version), Switch("Publish to npm", $/npm), Button("Ship", Event("ship"), tone="primary")], title="Release plan")
+</a2ui>
+
+<a2ui>
+surface("release", update=true)
+$/version = "1.5.0-beta.1"
+$/npm = false
 </a2ui>

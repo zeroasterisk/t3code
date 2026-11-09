@@ -1,6 +1,7 @@
 import { shouldPreserveAssistantLineBreaks } from "@t3tools/shared/markdownPipeline";
 import { type RunId } from "@t3tools/contracts";
 import { canForkProjectedAssistantItem } from "@t3tools/client-runtime/state/thread-workflows";
+import { scopedThreadKey } from "@t3tools/client-runtime/environment";
 import { memo, use, useState } from "react";
 import { type ChatMessage, type TurnDiffSummary } from "../../types";
 import ChatMarkdown from "../ChatMarkdown";
@@ -47,7 +48,13 @@ export function AssistantTimelineRow({ row }: { row: Extract<TimelineRow, { kind
             request={ctx.citationRequest}
             listRef={ctx.listRef}
           >
-            <A2uiCardScope value={row.message.id}>
+            <A2uiCardScope
+              value={{
+                threadKey: ctx.threadRef ? scopedThreadKey(ctx.threadRef) : undefined,
+                messageId: row.message.id,
+                createdAt: row.message.createdAt,
+              }}
+            >
               <ChatMarkdown
                 text={messageText}
                 cwd={ctx.markdownCwd}

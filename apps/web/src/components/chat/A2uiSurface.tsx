@@ -2,10 +2,15 @@ import { ExpressFormat } from "@a2ui/agent";
 import { A2uiSurface, type ReactCatalogComponent } from "@a2ui/react";
 import { type ActionPayload, MessageProcessor } from "@a2ui/web_core";
 import { a2uiActionMessage } from "@t3tools/shared/a2uiMessage";
-import { useEffect, useState, type ReactNode } from "react";
+import { RefreshCwIcon } from "lucide-react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 
 import { useStableCallback } from "../../hooks/useStableCallback";
+import { isCanvasSource, ThreadCanvas } from "./a2uiCanvas";
 import { A2uiThemeContext, a2uiApiCatalog, a2uiRenderCatalog } from "./a2uiCatalog";
+import { markA2uiCanvasStateShared, provideA2uiCanvasState } from "./a2uiCanvasReplica";
+import { A2uiReceipt } from "./A2uiReceipt";
+import type { A2uiCardScopeValue } from "./MarkdownA2uiBlock";
 
 /** Bounds parse cost; longer payloads render as the plain code block. */
 const MAX_A2UI_SOURCE_LENGTH = 16_000;
@@ -73,20 +78,44 @@ function buildProcessor(source: string, onAction: (action: ActionPayload) => voi
   }
 }
 
-export default function A2uiSurfaceBlock({
-  source,
-  scope,
-  theme,
-  onSendMessage,
-  fallback,
-}: {
+const MAX_KEPT_THREADS = 20;
+const threadCanvases = new Map<string, ThreadCanvas<ReactCatalogComponent>>();
+
+function threadCanvas(threadKey: string): ThreadCanvas<ReactCatalogComponent> {
+  const kept = threadCanvases.get(threadKey);
+  if (kept) return kept;
+  const canvas = new ThreadCanvas({
+    apiCatalog: a2uiApiCatalog,
+    renderCatalog: a2uiRenderCatalog,
+    onShared: (state) => markA2uiCanvasStateShared(threadKey, state),
+  });
+  provideA2uiCanvasState(threadKey, () => canvas.snapshot());
+  threadCanvases.set(threadKey, canvas);
+  const oldest = threadCanvases.keys().next();
+  if (threadCanvases.size > MAX_KEPT_THREADS && !oldest.done) threadCanvases.delete(oldest.value);
+  return canvas;
+}
+
+interface SurfaceBlockProps {
   readonly source: string;
-  readonly scope: string | undefined;
+  readonly scope: A2uiCardScopeValue | undefined;
+  readonly offset: number;
   readonly theme: "light" | "dark";
   readonly onSendMessage: (text: string) => Promise<void>;
   readonly fallback: ReactNode;
-}) {
-  const [state] = useState(() => cardState(scope, source));
+}
+
+export default function A2uiSurfaceBlock(props: SurfaceBlockProps) {
+  const threadKey = props.scope?.threadKey;
+  return threadKey !== undefined && isCanvasSource(props.source) ? (
+    <CanvasBlock {...props} threadKey={threadKey} />
+  ) : (
+    <CardBlock {...props} />
+  );
+}
+
+function CardBlock({ source, scope, theme, onSendMessage, fallback }: SurfaceBlockProps) {
+  const [state] = useState(() => cardState(scope?.messageId, source));
   const [sent, setSent] = useState(state.sent);
   const onAction = useStableCallback((action: ActionPayload) => {
     if (state.sent) return;
@@ -119,6 +148,75 @@ export default function A2uiSurfaceBlock({
         {[...processor.getSurfaces().values()].map((surface) => (
           <A2uiSurface key={surface.id} surface={surface} />
         ))}
+      </A2uiThemeContext>
+    </div>
+  );
+}
+
+function CanvasBlock({
+  source,
+  scope,
+  offset,
+  theme,
+  onSendMessage,
+  fallback,
+  threadKey,
+}: SurfaceBlockProps & { readonly threadKey: string }) {
+  const canvas = threadCanvas(threadKey);
+  useSyncExternalStore(canvas.subscribe, () => canvas.version);
+  const order = `${scope?.createdAt ?? ""}\u0000${scope?.messageId ?? ""}\u0000${String(offset).padStart(8, "0")}`;
+  const result =
+    source.length > MAX_A2UI_SOURCE_LENGTH
+      ? ({ kind: "failed" } as const)
+      : canvas.register(`${scope?.messageId ?? ""}\u0000${source}`, order, source);
+  const sending = useRef(false);
+  const onAction = useStableCallback((action: ActionPayload) => {
+    if (sending.current) return;
+    sending.current = true;
+    const dataModel = canvas.dataModel(action.surfaceId);
+    markA2uiCanvasStateShared(threadKey, { surfaceId: action.surfaceId, dataModel });
+    onSendMessage(
+      a2uiActionMessage({
+        surfaceId: action.surfaceId,
+        name: action.name,
+        sourceComponentId: action.sourceComponentId,
+        context: action.context,
+        dataModel,
+      }),
+    ).finally(() => {
+      sending.current = false;
+    });
+  });
+  const surfaceIds = result?.kind === "surfaces" ? result.surfaceIds : [];
+  const routedIds = surfaceIds.join("\u0000");
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- routes the thread canvas's actions to the mount that draws each surface
+  useEffect(() => {
+    const unroute = routedIds
+      .split("\u0000")
+      .filter(Boolean)
+      .map((surfaceId) => canvas.route(surfaceId, onAction));
+    return () => {
+      for (const release of unroute) release();
+    };
+  }, [canvas, onAction, routedIds]);
+  if (result?.kind === "update") {
+    const titles = result.surfaceIds.map((surfaceId) => canvas.title(surfaceId)).join(", ");
+    return (
+      <A2uiReceipt icon={RefreshCwIcon} label={`Updated ${titles}`}>
+        {fallback}
+      </A2uiReceipt>
+    );
+  }
+  if (result?.kind !== "surfaces") return fallback;
+  return (
+    <div className="my-2 flex flex-col gap-3" data-testid="a2ui-surface" data-a2ui-surface="">
+      <A2uiThemeContext value={theme}>
+        {surfaceIds.flatMap((surfaceId) => {
+          const surface = canvas.surface(surfaceId);
+          return surface
+            ? [<A2uiSurface key={`${surfaceId}:${canvas.generation}`} surface={surface} />]
+            : [];
+        })}
       </A2uiThemeContext>
     </div>
   );

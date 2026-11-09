@@ -42,8 +42,10 @@ import {
   scopeProjectRef,
   scopeThreadRef,
 } from "@t3tools/client-runtime/environment";
+import { withA2uiState } from "@t3tools/shared/a2uiMessage";
 import { createModelSelection } from "@t3tools/shared/model";
 import { type SetStateAction, useLayoutEffect, useRef } from "react";
+import { takeChangedA2uiCanvasState } from "./a2uiCanvasReplica";
 import { flushSync } from "react-dom";
 import { useNavigate } from "@tanstack/react-router";
 import {
@@ -783,13 +785,18 @@ export function useComposerSend(input: ComposerSendInput) {
     );
     const messageIdForSend = newMessageId();
     const messageCreatedAt = new Date().toISOString();
-    const outgoingMessageText = formatOutgoingPrompt({
-      provider: ctxSelectedProvider,
-      model: ctxSelectedModel,
-      models: ctxSelectedProviderModels,
-      effort: ctxSelectedPromptEffort,
-      text: messageTextForSend || ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
-    });
+    const outgoingMessageText = withA2uiState(
+      formatOutgoingPrompt({
+        provider: ctxSelectedProvider,
+        model: ctxSelectedModel,
+        models: ctxSelectedProviderModels,
+        effort: ctxSelectedPromptEffort,
+        text: messageTextForSend || ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
+      }),
+      takeChangedA2uiCanvasState(
+        scopedThreadKey(scopeThreadRef(activeThread.environmentId, threadIdForSend)),
+      ),
+    );
     if (composerRef.current?.validateProviderInput(outgoingMessageText) === false) {
       return;
     }

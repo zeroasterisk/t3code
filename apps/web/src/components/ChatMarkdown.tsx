@@ -196,6 +196,7 @@ import { createMarkdownRenderer } from "./chat/markdownRenderer";
 import { splitMarkdownBlocks } from "./chat/markdownStreamBlocks";
 import { MarkdownMermaidCodeBlock } from "./chat/MarkdownMermaidCodeBlock";
 import { MarkdownA2uiBlock } from "./chat/MarkdownA2uiBlock";
+import { A2uiReceipt, a2uiFenceReceipt } from "./chat/A2uiReceipt";
 import { MarkdownTable } from "./chat/MarkdownTable";
 import { MarkdownDetails } from "./chat/MarkdownDetails";
 import {
@@ -1658,6 +1659,10 @@ const CHAT_MARKDOWN_COMPONENTS = {
         {highlightedCode}
       </MarkdownCodeBlock>
     );
+    const receipt = a2uiFenceReceipt(language, codeBlock.code);
+    if (receipt && (!isStreaming || isClosedCodeFence(node, text, codeBlock.code))) {
+      return <A2uiReceipt {...receipt}>{plainCodeBlock}</A2uiReceipt>;
+    }
     if (
       language === A2UI_FENCE_LANGUAGE &&
       onSendAppMessage &&
@@ -1666,6 +1671,7 @@ const CHAT_MARKDOWN_COMPONENTS = {
       return (
         <MarkdownA2uiBlock
           source={codeBlock.code}
+          offset={node?.position?.start.offset ?? 0}
           theme={resolvedTheme}
           onSendMessage={onSendAppMessage}
         >
