@@ -51,6 +51,11 @@ export const SCENARIOS = [
     file: "./dev-replay/a2ui_canvas_transcript.ndjson",
   },
   {
+    id: "a2ui-review",
+    name: "Review triage (A2UI)",
+    file: "./dev-replay/a2ui_review_transcript.ndjson",
+  },
+  {
     id: "todo-list",
     name: "Plan and reads",
     file: `${FIXTURES}/todo_list/registry_transcript.ndjson`,

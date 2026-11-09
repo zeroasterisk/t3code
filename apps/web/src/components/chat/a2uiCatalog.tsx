@@ -47,6 +47,11 @@ function childList(children: unknown, buildChild: (id: string) => ReactNode): Re
   return Array.isArray(children) ? children.map((id) => buildChild(String(id))) : null;
 }
 
+/** Keeps chips and labels at their own width inside a stretching vertical Stack. */
+function Inline({ children }: { children: ReactNode }) {
+  return <span className="flex min-w-0">{children}</span>;
+}
+
 function strings(value: unknown): ReadonlyArray<string> {
   return Array.isArray(value) ? value.map(String) : [];
 }
@@ -183,7 +188,11 @@ function FileChip({ path, label }: { path: string; label?: string | undefined })
 }
 
 const FileImpl = createComponentImplementation(entry("File"), function A2uiFile({ props }) {
-  return <FileChip path={props.path ?? ""} label={props.label} />;
+  return (
+    <Inline>
+      <FileChip path={props.path ?? ""} label={props.label} />
+    </Inline>
+  );
 });
 
 function countPatchLines(patch: string) {
@@ -221,11 +230,13 @@ const DiffStatImpl = createComponentImplementation(
   entry("DiffStat"),
   function A2uiDiffStat({ props }) {
     return (
-      <DiffStatLabel
-        additions={Number(props.additions) || 0}
-        deletions={Number(props.deletions) || 0}
-        layout="inline"
-      />
+      <Inline>
+        <DiffStatLabel
+          additions={Number(props.additions) || 0}
+          deletions={Number(props.deletions) || 0}
+          layout="inline"
+        />
+      </Inline>
     );
   },
 );
@@ -240,9 +251,11 @@ const BADGE_TONES = {
 
 const BadgeImpl = createComponentImplementation(entry("Badge"), function A2uiBadge({ props }) {
   return (
-    <Badge variant={BADGE_TONES[props.tone as keyof typeof BADGE_TONES] ?? "secondary"}>
-      {props.text}
-    </Badge>
+    <Inline>
+      <Badge variant={BADGE_TONES[props.tone as keyof typeof BADGE_TONES] ?? "secondary"}>
+        {props.text}
+      </Badge>
+    </Inline>
   );
 });
 
@@ -267,11 +280,13 @@ const AlertImpl = createComponentImplementation(entry("Alert"), function A2uiAle
 
 const KeysImpl = createComponentImplementation(entry("Keys"), function A2uiKeys({ props }) {
   return (
-    <KbdGroup>
-      {keyed(strings(props.keys), (key) => key).map(({ key, item }) => (
-        <Kbd key={key}>{item}</Kbd>
-      ))}
-    </KbdGroup>
+    <Inline>
+      <KbdGroup>
+        {keyed(strings(props.keys), (key) => key).map(({ key, item }) => (
+          <Kbd key={key}>{item}</Kbd>
+        ))}
+      </KbdGroup>
+    </Inline>
   );
 });
 
