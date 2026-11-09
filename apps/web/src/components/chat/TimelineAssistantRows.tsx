@@ -1,7 +1,8 @@
 import { shouldPreserveAssistantLineBreaks } from "@t3tools/shared/markdownPipeline";
 import { type RunId } from "@t3tools/contracts";
 import { canForkProjectedAssistantItem } from "@t3tools/client-runtime/state/thread-workflows";
-import { memo, use, useState } from "react";
+import { lazy, memo, Suspense, use, useState } from "react";
+import { splitA2uiSegments } from "@t3tools/shared/a2uiMessage";
 import { type ChatMessage, type TurnDiffSummary } from "../../types";
 import ChatMarkdown from "../ChatMarkdown";
 import { GitForkIcon } from "lucide-react";
@@ -23,6 +24,9 @@ import { formatChatTimestampTooltip, formatDayAwareTimestamp } from "../../times
 import { useV2ItemSupport } from "../../state/v2ItemSupport";
 import { TimelineRowCtx, TimelineRowActivityCtx, type TimelineRow } from "./timelineRowContext";
 import { MESSAGE_HEADING_LEVEL, MessageAuthorHeading } from "./TimelineRowParts";
+import { A2uiPending } from "./A2uiPending";
+
+const A2uiBlock = lazy(() => import("./A2uiBlock"));
 
 export function AssistantTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" }> }) {
   const ctx = use(TimelineRowCtx);
@@ -46,18 +50,31 @@ export function AssistantTimelineRow({ row }: { row: Extract<TimelineRow, { kind
             request={ctx.citationRequest}
             listRef={ctx.listRef}
           >
-            <ChatMarkdown
-              text={messageText}
-              cwd={ctx.markdownCwd}
-              threadRef={ctx.threadRef ?? undefined}
-              isStreaming={Boolean(row.message.streaming)}
-              lineBreaks={shouldPreserveAssistantLineBreaks(messageText)}
-              skills={ctx.skills}
-              headingLevelOffset={MESSAGE_HEADING_LEVEL}
-              onUseArtifactTemplate={ctx.onUseArtifactTemplate}
-              onRunShellCommand={ctx.onRunShellCommand}
-              onImageExpand={ctx.onImageExpand}
-            />
+            {splitA2uiSegments(messageText).map((segment) =>
+              segment.kind === "a2ui" ? (
+                segment.closed ? (
+                  <Suspense key={segment.offset} fallback={<A2uiPending />}>
+                    <A2uiBlock source={segment.source} onSendMessage={ctx.onSendAppMessage} />
+                  </Suspense>
+                ) : (
+                  <A2uiPending key={segment.offset} />
+                )
+              ) : (
+                <ChatMarkdown
+                  key={segment.offset}
+                  text={segment.markdown}
+                  cwd={ctx.markdownCwd}
+                  threadRef={ctx.threadRef ?? undefined}
+                  isStreaming={Boolean(row.message.streaming)}
+                  lineBreaks={shouldPreserveAssistantLineBreaks(segment.markdown)}
+                  skills={ctx.skills}
+                  headingLevelOffset={MESSAGE_HEADING_LEVEL}
+                  onUseArtifactTemplate={ctx.onUseArtifactTemplate}
+                  onRunShellCommand={ctx.onRunShellCommand}
+                  onImageExpand={ctx.onImageExpand}
+                />
+              ),
+            )}
           </AssistantCitationSource>
         </div>
         {ctx.onOpenTurnDiff ? (
