@@ -7,8 +7,13 @@ import {
   type ComponentApi,
   type ResolvedChildRef,
 } from "@a2ui/web_core";
-// The basic catalog entry also loads its Lit elements (~30 KB); only the APIs are used here.
-import { BASIC_FUNCTIONS, basicCatalog } from "@a2ui/web_core/catalogs/basic/v1";
+// Only the pure component APIs, functions and theme schema: `basicCatalog` itself carries the
+// Lit elements, so importing it would pull lit into this chunk.
+import {
+  BASIC_COMPONENTS,
+  BASIC_FUNCTIONS,
+  BasicCatalogThemeSchema,
+} from "@a2ui/web_core/catalogs/basic/v1";
 import type { ReactNode } from "react";
 
 import { cn } from "~/lib/utils";
@@ -31,17 +36,9 @@ type Props = Record<string, unknown> & {
 type Build = (id: string, basePath?: string) => ReactNode;
 
 function api(name: string): ComponentApi {
-  const entry = basicCatalog.components.get(name);
+  const entry = BASIC_COMPONENTS.find((candidate) => candidate.name === name);
   if (!entry) throw new Error(`A2UI basic catalog has no ${name}`);
-  // Copy the API fields only: the entry itself carries the Lit element.
-  const { schema, allowedParents, allowedChildren, metadata } = entry;
-  return {
-    name,
-    schema,
-    ...(allowedParents ? { allowedParents } : {}),
-    ...(allowedChildren ? { allowedChildren } : {}),
-    ...(metadata ? { metadata } : {}),
-  };
+  return entry;
 }
 
 function component(
@@ -260,9 +257,9 @@ const components: ReactCatalogComponent[] = [
 
 /** Same id, components and functions as the basic catalog, so Express output validates as-is. */
 export const t3BasicCatalog = new Catalog<ReactCatalogComponent>(
-  basicCatalog.id,
+  "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
   "1.0",
   components,
   BASIC_FUNCTIONS,
-  basicCatalog.themeSchema,
+  BasicCatalogThemeSchema,
 );
