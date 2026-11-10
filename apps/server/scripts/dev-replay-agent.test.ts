@@ -6,7 +6,14 @@ import * as NodeURL from "node:url";
 
 import { describe, expect, it } from "@effect/vitest";
 
+import { splitA2uiSegments } from "@t3tools/shared/a2uiMessage";
+
 import { parseReplayTurns, SCENARIOS, streamChunks } from "./dev-replay-agent.ts";
+
+interface AgentUpdate {
+  readonly sessionUpdate?: string;
+  readonly content?: { readonly text?: string };
+}
 
 interface AgentMessage {
   readonly id?: number;
@@ -175,6 +182,28 @@ describe("dev replay agent", () => {
     const turns = parseReplayTurns(transcript);
     expect(turns).toHaveLength(1);
     expect(turns[0]!.frames).toHaveLength(1);
+  });
+
+  it("a2ui replays a form, its result and a blocked reply, one closed block per turn", () => {
+    const scenario = SCENARIOS.find((s) => s.id === "a2ui")!;
+    const turns = parseReplayTurns(
+      NodeFS.readFileSync(new URL(scenario.file, import.meta.url), "utf8"),
+    );
+    expect(turns).toHaveLength(3);
+    const sources = turns.map((turn) => {
+      const text = turn.frames
+        .map(({ frame }) => (frame.params as { update?: AgentUpdate }).update)
+        .filter((update) => update?.sessionUpdate === "agent_message_chunk")
+        .map((update) => update!.content!.text)
+        .join("");
+      const blocks = splitA2uiSegments(text).filter((segment) => segment.kind === "a2ui");
+      expect(blocks).toHaveLength(1);
+      expect(blocks[0]!.closed).toBe(true);
+      return blocks[0]!.source;
+    });
+    expect(sources[0]).toContain('Event("apply_triage"');
+    expect(sources[1]).toContain("Triage applied");
+    expect(sources[2]).toContain("Iframe(");
   });
 
   it("streams text in chunks that rebuild the original", () => {
