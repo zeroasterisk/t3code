@@ -225,6 +225,25 @@ it("reuses the parse of a remounted message that has stable extra plugins", asyn
   expect(parsed).toHaveBeenCalledTimes(1);
 });
 
+describe("ChatMarkdown interactive-reply actions", () => {
+  it("collapses the a2ui-action payload behind a disclosure", async () => {
+    setup();
+    const payload = '{"surfaceId":"s","name":"apply","sourceComponentId":"go","context":{"pr":12}}';
+    await using screen = await render(
+      <ChatMarkdown
+        cwd="/tmp/project"
+        text={`Apply triage\n\npr: 12\n\n\`\`\`a2ui-action\n${payload}\n\`\`\``}
+      />,
+    );
+    await expect.element(screen.getByText("pr: 12")).toBeVisible();
+    const toggle = screen.getByRole("button", { name: "Action payload" });
+    await expect.element(toggle).toBeVisible();
+    await expect.element(screen.getByText(payload)).not.toBeInTheDocument();
+    await userEvent.click(toggle);
+    await expect.element(screen.getByText(payload)).toBeVisible();
+  });
+});
+
 describe("ChatMarkdown favicon privacy", () => {
   it("suppresses private link images while preserving public links across updates", async () => {
     setup();

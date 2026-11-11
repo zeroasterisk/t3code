@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { A2UI_MAX_SOURCE_LENGTH, a2uiActionMessage, splitA2uiSegments } from "./a2uiMessage.ts";
+import {
+  A2UI_MAX_SOURCE_LENGTH,
+  a2uiActionMessage,
+  a2uiActionSummary,
+  splitA2uiSegments,
+} from "./a2uiMessage.ts";
 
 describe("splitA2uiSegments", () => {
   it.each([
@@ -64,7 +69,36 @@ describe("a2uiActionMessage", () => {
       "Apply triage",
     );
     expect(text).toBe(
-      'Apply triage\n\n```a2ui-action\n{"surfaceId":"s","name":"apply","sourceComponentId":"go","context":{"pr":12}}\n```',
+      'Apply triage\n\npr: 12\n\n```a2ui-action\n{"surfaceId":"s","name":"apply","sourceComponentId":"go","context":{"pr":12}}\n```',
     );
+  });
+
+  it("skips the summary when the action has no values", () => {
+    const text = a2uiActionMessage({
+      surfaceId: "s",
+      name: "ok",
+      sourceComponentId: "b",
+      context: {},
+    });
+    expect(text.startsWith("Ok\n\n```a2ui-action\n")).toBe(true);
+  });
+});
+
+describe("a2uiActionSummary", () => {
+  it("lists what the user chose, short and markdown-safe", () => {
+    expect(
+      a2uiActionSummary({
+        pr415: ["revert"],
+        notify: true,
+        note: "x".repeat(60),
+        empty: "",
+        tag: "*bold*",
+      }),
+    ).toBe(`pr415: revert · notify: yes · note: ${"x".repeat(39)}… · tag: \\*bold\\*`);
+  });
+
+  it("caps the number of fields", () => {
+    const context = Object.fromEntries(Array.from({ length: 8 }, (_, i) => [`f${i}`, i]));
+    expect(a2uiActionSummary(context).endsWith("f5: 5 · +2 more")).toBe(true);
   });
 });

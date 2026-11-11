@@ -74,7 +74,37 @@ export interface A2uiActionEvent {
   readonly context: Readonly<Record<string, unknown>>;
 }
 
-/** The user message an A2UI action sends: readable first, exact payload in a fence. */
+const SUMMARY_VALUE_MAX = 40;
+const SUMMARY_FIELDS_MAX = 6;
+
+function summaryValue(value: unknown): string {
+  const text = Array.isArray(value)
+    ? value.map(summaryValue).join(", ")
+    : typeof value === "boolean"
+      ? value
+        ? "yes"
+        : "no"
+      : value !== null && typeof value === "object"
+        ? "…"
+        : String(value ?? "");
+  const short = text.length > SUMMARY_VALUE_MAX ? `${text.slice(0, SUMMARY_VALUE_MAX - 1)}…` : text;
+  return short.replace(/[\\`*_[\]<>#|~]/g, "\\$&");
+}
+
+/** `pr415: revert · note: ship it`: what the user chose, short enough for a phone. */
+export function a2uiActionSummary(context: Readonly<Record<string, unknown>>): string {
+  const fields = Object.entries(context).filter(([, value]) => value !== "" && value != null);
+  const shown = fields
+    .slice(0, SUMMARY_FIELDS_MAX)
+    .map(([key, value]) => `${summaryValue(key)}: ${summaryValue(value)}`);
+  if (fields.length > SUMMARY_FIELDS_MAX) shown.push(`+${fields.length - SUMMARY_FIELDS_MAX} more`);
+  return shown.join(" · ");
+}
+
+/**
+ * The user message an A2UI action sends: a readable heading and summary, then the exact
+ * payload in an `a2ui-action` fence (the chat shows that fence collapsed).
+ */
 export function a2uiActionMessage(action: A2uiActionEvent, label?: string): string {
   const payload = {
     surfaceId: action.surfaceId,
@@ -83,5 +113,7 @@ export function a2uiActionMessage(action: A2uiActionEvent, label?: string): stri
     context: action.context,
   };
   const heading = label?.trim() || humanize(action.name);
-  return `${heading}\n\n\`\`\`${ACTION_FENCE}\n${JSON.stringify(payload)}\n\`\`\``;
+  const summary = a2uiActionSummary(action.context);
+  const lead = summary ? `${heading}\n\n${summary}` : heading;
+  return `${lead}\n\n\`\`\`${ACTION_FENCE}\n${JSON.stringify(payload)}\n\`\`\``;
 }

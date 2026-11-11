@@ -1589,6 +1589,16 @@ const CHAT_MARKDOWN_COMPONENTS = {
     ) {
       return <MarkdownMath tex={codeBlock.code} display focusable={!inline} />;
     }
+    if (language === "a2ui-action") {
+      // The exact payload of an interactive-reply action. The text above it already says what
+      // was chosen, so the JSON stays collapsed (it wraps badly on phones).
+      return (
+        <MarkdownDetails>
+          <summary>Action payload</summary>
+          <pre className="overflow-x-auto font-mono text-xs">{codeBlock.code}</pre>
+        </MarkdownDetails>
+      );
+    }
     const fenceTitle = extractFenceTitle(extractPreCodeMeta(node));
     const highlightedCode = (
       <RenderErrorBoundary
