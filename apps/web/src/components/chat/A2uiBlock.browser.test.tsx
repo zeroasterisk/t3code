@@ -27,6 +27,31 @@ describe("A2uiBlock", () => {
     await expect.element(screen.getByText("Sent to the agent")).toBeVisible();
   });
 
+  it("keeps the submitted values visible and locks every control after sending", async () => {
+    const onSendMessage = vi.fn(async (_text: string) => {});
+    const source = `
+note = TextField("Note", value=$/note)
+notify = CheckBox("Notify", value=$/notify)
+go = Button(Text("Apply"), variant="primary", action=Event("apply", {note: $/note, notify: $/notify}))
+root = Column([note, notify, go])
+$/note = ""
+$/notify = false
+`;
+    await using screen = await render(<A2uiBlock source={source} onSendMessage={onSendMessage} />);
+
+    await userEvent.fill(screen.getByRole("textbox"), "ship it");
+    await userEvent.click(screen.getByText("Notify"));
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
+
+    await expect.element(screen.getByText("Sent to the agent")).toBeVisible();
+    expect(onSendMessage.mock.calls[0]![0]).toContain('"note":"ship it"');
+    const input = document.querySelector("[data-a2ui-surface] input") as HTMLInputElement;
+    expect(input.value).toBe("ship it");
+    const locked = document.querySelector("[data-a2ui-locked]") as HTMLElement;
+    expect(locked.inert).toBe(true);
+    expect(locked.querySelector('[role="checkbox"]')?.getAttribute("aria-checked")).toBe("true");
+  });
+
   it("blocks components outside the catalog without rendering them", async () => {
     await using screen = await render(
       <A2uiBlock source={'root = Iframe(url="https://evil.example")'} onSendMessage={undefined} />,

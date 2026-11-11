@@ -6,6 +6,7 @@ import { MessageProcessor, type SurfaceModel } from "@a2ui/web_core";
 import { a2uiActionMessage } from "@t3tools/shared/a2uiMessage";
 import { useState } from "react";
 
+import { useStableCallback } from "~/hooks/useStableCallback";
 import { t3BasicCatalog } from "./a2uiCatalog";
 
 const parser = new ExpressFormat([t3BasicCatalog]).createParser();
@@ -38,7 +39,8 @@ export default function A2uiBlock({
   readonly onSendMessage: ((text: string) => Promise<void>) | undefined;
 }) {
   const [sent, setSent] = useState<"idle" | "sending" | "sent" | "failed">("idle");
-  const compiled = compile(source, async (action) => {
+  // A stable handler keeps the processor's listener valid across renders.
+  const onAction = useStableCallback(async (action: Parameters<NonNullable<ActionHandler>>[0]) => {
     if (!onSendMessage) return;
     setSent("sending");
     try {
@@ -48,6 +50,15 @@ export default function A2uiBlock({
       setSent("failed");
     }
   });
+  // One processor per source, held in state: re-renders (e.g. the send status) must keep the
+  // edited data model, so never rebuild it during render.
+  const [built, setBuilt] = useState(() => ({ source, compiled: compile(source, onAction) }));
+  let compiled = built.compiled;
+  if (built.source !== source) {
+    compiled = compile(source, onAction);
+    setBuilt({ source, compiled });
+  }
+  const locked = !onSendMessage || sent === "sending" || sent === "sent";
 
   if (!compiled.ok) {
     return (
@@ -75,14 +86,16 @@ export default function A2uiBlock({
       aria-busy={sent === "sending" || undefined}
       className="my-2 flex flex-col gap-2"
     >
-      <fieldset
-        disabled={!onSendMessage || sent === "sending" || sent === "sent"}
-        className="contents"
+      {/* `inert` also locks Base UI controls, which ignore `<fieldset disabled>`. */}
+      <div
+        inert={locked}
+        data-a2ui-locked={locked || undefined}
+        className={locked && onSendMessage ? "contents opacity-70" : "contents"}
       >
         {compiled.surfaces.map((surface) => (
           <A2uiSurface key={surface.id} surface={surface} />
         ))}
-      </fieldset>
+      </div>
       {sent === "sent" ? <p className="text-xs text-muted-foreground">Sent to the agent</p> : null}
       {sent === "failed" ? (
         <p className="text-xs text-destructive-foreground">Could not send. Try again.</p>
