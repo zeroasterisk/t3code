@@ -37,6 +37,46 @@ describe("splitA2uiSegments", () => {
       "Use the <a2ui> tag to render.",
       [{ kind: "markdown", offset: 0, markdown: "Use the <a2ui> tag to render." }],
     ],
+    [
+      "a tilde line inside a backtick fence",
+      "```\n~~~\n<a2ui>\nx\n</a2ui>\n```",
+      [{ kind: "markdown", offset: 0, markdown: "```\n~~~\n<a2ui>\nx\n</a2ui>\n```" }],
+    ],
+    [
+      "a shorter fence inside a longer one",
+      "````md\n```\n<a2ui>\nx\n</a2ui>\n```\n````",
+      [{ kind: "markdown", offset: 0, markdown: "````md\n```\n<a2ui>\nx\n</a2ui>\n```\n````" }],
+    ],
+    [
+      "source on the opening line",
+      '<a2ui>root = Text("hi")\n</a2ui>',
+      [{ kind: "a2ui", offset: 0, source: 'root = Text("hi")\n', closed: true }],
+    ],
+    [
+      "a close tag inside an Express string",
+      '<a2ui>\nroot = Text("type </a2ui> to end")\n</a2ui>\nDone.',
+      [
+        { kind: "a2ui", offset: 0, source: 'root = Text("type </a2ui> to end")\n', closed: true },
+        { kind: "markdown", offset: 49, markdown: "\nDone." },
+      ],
+    ],
+    [
+      "a close tag inside a triple-quoted string and a comment",
+      '<a2ui>\n# </a2ui> in a comment\nroot = Text("""a\n</a2ui>\nb""")\n</a2ui>',
+      [
+        {
+          kind: "a2ui",
+          offset: 0,
+          source: '# </a2ui> in a comment\nroot = Text("""a\n</a2ui>\nb""")\n',
+          closed: true,
+        },
+      ],
+    ],
+    [
+      "a close tag inside a still-streaming string",
+      '<a2ui>\nroot = Text("</a2ui>',
+      [{ kind: "a2ui", offset: 0, source: 'root = Text("</a2ui>', closed: false }],
+    ],
   ])("splits %s", (_name, text, expected) => {
     expect(splitA2uiSegments(text)).toEqual(expected);
   });

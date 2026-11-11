@@ -17,26 +17,75 @@ export type A2uiMessageSegment =
       readonly closed: boolean;
     };
 
+/** A CommonMark fence opener/closer: 3+ backticks or tildes, up to 3 spaces of indent. */
+const FENCE_LINE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
+
 /**
- * Splits message text into markdown and A2UI blocks. Tags inside fenced code stay markdown,
- * so an agent can show A2UI source without rendering it. An unclosed block (still streaming)
- * comes back with `closed: false`.
+ * Where the block's `</a2ui>` starts, or -1 while it streams. Like `@a2ui/agent`'s lexer, the
+ * tag only counts outside Express strings and comments, so `Text("</a2ui>")` stays source.
+ */
+function findCloseTag(text: string, from: number): number {
+  let i = from;
+  while (i < text.length) {
+    if (text.startsWith(CLOSE_TAG, i)) return i;
+    const ch = text[i];
+    if (ch === '"') {
+      const triple = text.startsWith('"""', i);
+      const quote = triple ? '"""' : '"';
+      i += quote.length;
+      while (i < text.length && !text.startsWith(quote, i)) {
+        if (!triple && text[i] === "\n") break;
+        i += text[i] === "\\" ? 2 : 1;
+      }
+      i += quote.length;
+    } else if (ch === "#" || text.startsWith("//", i)) {
+      const lineEnd = text.indexOf("\n", i);
+      i = lineEnd === -1 ? text.length : lineEnd;
+    } else if (text.startsWith("/*", i)) {
+      const commentEnd = text.indexOf("*/", i + 2);
+      i = commentEnd === -1 ? text.length : commentEnd + 2;
+    } else {
+      i += 1;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Splits message text into markdown and A2UI blocks. A block opens on a line that starts with
+ * `<a2ui>`. Tags inside fenced code stay markdown (fences pair by character and length, as in
+ * CommonMark), so an agent can show A2UI source without rendering it. An unclosed block (still
+ * streaming) comes back with `closed: false`.
  */
 export function splitA2uiSegments(text: string): A2uiMessageSegment[] {
   if (!text.includes(OPEN_TAG)) return [{ kind: "markdown", offset: 0, markdown: text }];
   const segments: A2uiMessageSegment[] = [];
   let markdownStart = 0;
   let cursor = 0;
-  let inFence = false;
+  let fence: string | null = null;
   while (cursor < text.length) {
     const lineEnd = text.indexOf("\n", cursor);
     const next = lineEnd === -1 ? text.length : lineEnd + 1;
-    const line = text.slice(cursor, next).trim();
-    if (line.startsWith("```") || line.startsWith("~~~")) inFence = !inFence;
-    if (!inFence && line === OPEN_TAG) {
-      const close = text.indexOf(CLOSE_TAG, next);
+    const line = text.slice(cursor, next).replace(/\r?\n$/, "");
+    const fenceMatch = FENCE_LINE.exec(line);
+    if (fence === null && fenceMatch) {
+      const marker = fenceMatch[1]!;
+      // A backtick fence's info string can't hold a backtick.
+      if (marker[0] === "~" || !fenceMatch[2]!.includes("`")) fence = marker;
+    } else if (
+      fence !== null &&
+      fenceMatch &&
+      fenceMatch[1]![0] === fence[0] &&
+      fenceMatch[1]!.length >= fence.length &&
+      fenceMatch[2]!.trim() === ""
+    ) {
+      fence = null;
+    } else if (fence === null && line.trimStart().startsWith(OPEN_TAG)) {
+      const sourceStart = cursor + line.indexOf(OPEN_TAG) + OPEN_TAG.length;
+      const close = findCloseTag(text, sourceStart);
       pushMarkdown(segments, markdownStart, text.slice(markdownStart, cursor));
-      const source = text.slice(next, close === -1 ? text.length : close);
+      let source = text.slice(sourceStart, close === -1 ? text.length : close);
+      if (source.startsWith("\n")) source = source.slice(1);
       if (source.length > A2UI_MAX_SOURCE_LENGTH) {
         pushMarkdown(segments, cursor, "```\n" + source + "\n```");
       } else {
