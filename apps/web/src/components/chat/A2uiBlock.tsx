@@ -90,7 +90,9 @@ export default function A2uiBlock({
       <div
         inert={locked}
         data-a2ui-locked={locked || undefined}
-        className={locked && onSendMessage ? "contents opacity-70" : "contents"}
+        className={
+          locked && onSendMessage ? "flex flex-col gap-2 opacity-64" : "flex flex-col gap-2"
+        }
       >
         {compiled.surfaces.map((surface) => (
           <A2uiSurface key={surface.id} surface={surface} />

@@ -49,6 +49,9 @@ $/notify = false
     expect(input.value).toBe("ship it");
     const locked = document.querySelector("[data-a2ui-locked]") as HTMLElement;
     expect(locked.inert).toBe(true);
+    // The lock must be visible too: opacity on a `display: contents` box paints nothing.
+    expect(locked.getBoundingClientRect().height).toBeGreaterThan(0);
+    expect(Number(getComputedStyle(locked).opacity)).toBeLessThan(1);
     expect(locked.querySelector('[role="checkbox"]')?.getAttribute("aria-checked")).toBe("true");
   });
 
