@@ -25,6 +25,7 @@ import { Label } from "../ui/label";
 import { Radio, RadioGroup } from "../ui/radio-group";
 import { Separator } from "../ui/separator";
 import { Textarea } from "../ui/textarea";
+import { Toggle, ToggleGroup } from "../ui/toggle-group";
 
 // Resolved props are typed from the catalog JSON at runtime, so renderers read them loosely.
 type Props = Record<string, unknown> & {
@@ -218,6 +219,26 @@ const components: ReactCatalogComponent[] = [
               </label>
             );
           })
+        ) : options.length <= 4 &&
+          options.every((option) => (str(option.label) || str(option.value)).length <= 16) ? (
+          // A few short exclusive options read best as the host's segmented control.
+          <ToggleGroup
+            aria-label={str(props.label) || undefined}
+            className="w-full *:flex-1"
+            value={selected.slice(0, 1)}
+            onValueChange={(next) => {
+              if (next[0] !== undefined) props.setValue?.([String(next[0])]);
+            }}
+          >
+            {options.map((option) => {
+              const value = str(option.value);
+              return (
+                <Toggle key={value} value={value}>
+                  {str(option.label) || value}
+                </Toggle>
+              );
+            })}
+          </ToggleGroup>
         ) : (
           <RadioGroup
             value={selected[0] ?? ""}

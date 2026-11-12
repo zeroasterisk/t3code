@@ -27,6 +27,24 @@ describe("A2uiBlock", () => {
     await expect.element(screen.getByText("Sent to the agent")).toBeVisible();
   });
 
+  it("draws a few short exclusive choices as a segmented control", async () => {
+    await using screen = await render(
+      <A2uiBlock source={FORM} onSendMessage={vi.fn(async (_text: string) => {})} />,
+    );
+
+    const group = document.querySelector('[data-a2ui-surface] [data-slot="toggle-group"]');
+    expect(group).not.toBeNull();
+    expect(group?.querySelectorAll('[data-slot="toggle"]')).toHaveLength(2);
+    expect(document.querySelector('[data-a2ui-surface] [role="radio"]')).toBeNull();
+    await userEvent.click(screen.getByText("Revert"));
+    await vi.waitFor(() =>
+      expect(screen.getByText("Revert").element().closest("[data-pressed]")).not.toBeNull(),
+    );
+    // Pressing the selected option again keeps it selected, as a radio group would.
+    await userEvent.click(screen.getByText("Revert"));
+    expect(screen.getByText("Revert").element().closest("[data-pressed]")).not.toBeNull();
+  });
+
   it("keeps the submitted values visible and locks every control after sending", async () => {
     const onSendMessage = vi.fn(async (_text: string) => {});
     const source = `
