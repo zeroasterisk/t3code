@@ -184,7 +184,7 @@ describe("dev replay agent", () => {
     expect(turns[0]!.frames).toHaveLength(1);
   });
 
-  it("a2ui replays a form, its result and a blocked reply, one closed block per turn", () => {
+  it("a2ui replays a form, an update of that form, and a blocked reply, one closed block per turn", () => {
     const scenario = SCENARIOS.find((s) => s.id === "a2ui")!;
     const turns = parseReplayTurns(
       NodeFS.readFileSync(new URL(scenario.file, import.meta.url), "utf8"),
@@ -202,7 +202,9 @@ describe("dev replay agent", () => {
       return blocks[0]!.source;
     });
     expect(sources[0]).toContain('Event("apply_triage"');
+    expect(sources[0]).toMatch(/^surface\("triage"\)$/m);
     expect(sources[1]).toContain("Triage applied");
+    expect(sources[1]).toMatch(/^surface\("triage", update=true\)$/m);
     expect(sources[2]).toContain("Iframe(");
   });
 

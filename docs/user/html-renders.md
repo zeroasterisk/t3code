@@ -22,4 +22,6 @@ An agent can also answer with a small form instead of a page, such as a choice p
 
 While the reply streams, a placeholder holds its place. When you submit, T3 Code sends your answer to the agent as an ordinary message in the thread: a short heading plus the values you chose, which you can read in the thread. The exact data the agent receives sits under **Action payload**, collapsed. The form then locks and shows **Sent to the agent**. If sending fails, the form stays open so you can try again.
 
+An agent can update a form it drew earlier: it starts its later reply with `surface("<id>", update=true)`, using the id from the first reply. The earlier copy then shows **Interactive reply updated below**, and the latest one stays live.
+
 Interactive replies can only use T3 Code's built-in components. A reply that asks for anything else, such as an embedded page or a script, is blocked: T3 Code shows **Interactive reply blocked**, and nothing in it is rendered, loaded, or run. Open **Details** to see the agent's source. To show A2UI source without drawing it, an agent puts it in a code block.
