@@ -1054,7 +1054,6 @@ const ConversationTimeline = memo(function ConversationTimeline({
       timelineEntries.flatMap((entry) =>
         entry.kind === "message" &&
         entry.message.role === "assistant" &&
-        !entry.message.streaming &&
         entry.message.text.includes("<a2ui>")
           ? [entry.message]
           : [],

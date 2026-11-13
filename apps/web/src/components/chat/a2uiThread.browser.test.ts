@@ -53,6 +53,22 @@ describe("A2uiThreadStore", () => {
     expect(store.result("m1:0")?.ok).toBe(false);
   });
 
+  it("keeps a sent surface locked on replay and unlocks it on a fresh reply", async () => {
+    const store = new A2uiThreadStore();
+    store.setSendMessage(async () => {});
+    store.sync([{ key: "m1:0", source: triage("first") }]);
+    await store.surface("triage")!.dispatchAction({ event: { name: "go" } }, "button");
+    await Promise.resolve();
+    expect(store.sent("triage")).toBe("sent");
+    store.sync([{ key: "m1:0", source: triage("edited") }]);
+    expect(store.sent("triage")).toBe("sent");
+    store.sync([
+      { key: "m1:0", source: triage("edited") },
+      { key: "m2:0", source: update("second") },
+    ]);
+    expect(store.sent("triage")).toBeUndefined();
+  });
+
   it("applies each block once and rebuilds when an earlier block changes", () => {
     const store = new A2uiThreadStore();
     const blocks = [{ key: "m1:0", source: triage("first") }];
