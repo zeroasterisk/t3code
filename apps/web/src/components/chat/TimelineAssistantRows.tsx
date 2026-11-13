@@ -2,7 +2,7 @@ import { shouldPreserveAssistantLineBreaks } from "@t3tools/shared/markdownPipel
 import { type RunId } from "@t3tools/contracts";
 import { canForkProjectedAssistantItem } from "@t3tools/client-runtime/state/thread-workflows";
 import { lazy, memo, Suspense, use, useState } from "react";
-import { splitA2uiSegments } from "@t3tools/shared/a2uiMessage";
+import { a2uiBlockKey, splitA2uiSegments } from "@t3tools/shared/a2uiMessage";
 import { type ChatMessage, type TurnDiffSummary } from "../../types";
 import ChatMarkdown from "../ChatMarkdown";
 import { GitForkIcon } from "lucide-react";
@@ -54,7 +54,15 @@ export function AssistantTimelineRow({ row }: { row: Extract<TimelineRow, { kind
               segment.kind === "a2ui" ? (
                 segment.closed ? (
                   <Suspense key={segment.offset} fallback={<A2uiPending />}>
-                    <A2uiBlock source={segment.source} onSendMessage={ctx.onSendAppMessage} />
+                    <A2uiBlock
+                      source={segment.source}
+                      onSendMessage={ctx.onSendAppMessage}
+                      thread={{
+                        threadKey: ctx.routeThreadKey,
+                        blocks: ctx.a2uiBlocks,
+                        blockKey: a2uiBlockKey(row.message.id, segment.offset),
+                      }}
+                    />
                   </Suspense>
                 ) : (
                   <A2uiPending key={segment.offset} />

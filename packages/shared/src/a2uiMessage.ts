@@ -102,6 +102,35 @@ export function splitA2uiSegments(text: string): A2uiMessageSegment[] {
   return segments;
 }
 
+export interface A2uiThreadBlock {
+  /** `<messageId>:<offset>`, unique in the thread. */
+  readonly key: string;
+  readonly source: string;
+}
+
+/** The `<a2ui>` block key a renderer uses for a message's block at `offset`. */
+export function a2uiBlockKey(messageId: string, offset: number): string {
+  return `${messageId}:${offset}`;
+}
+
+/**
+ * A thread's closed A2UI blocks, in order. A later block can update an earlier block's
+ * surface, so renderers apply them in this order.
+ */
+export function a2uiThreadBlocks(
+  messages: ReadonlyArray<{ readonly id: string; readonly text: string }>,
+): A2uiThreadBlock[] {
+  const blocks: A2uiThreadBlock[] = [];
+  for (const message of messages) {
+    for (const segment of splitA2uiSegments(message.text)) {
+      if (segment.kind === "a2ui" && segment.closed) {
+        blocks.push({ key: a2uiBlockKey(message.id, segment.offset), source: segment.source });
+      }
+    }
+  }
+  return blocks;
+}
+
 /** `apply_triage` → `Apply triage`: the readable line of an action message. */
 function humanize(name: string): string {
   const words = name

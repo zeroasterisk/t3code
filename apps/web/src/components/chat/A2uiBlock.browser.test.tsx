@@ -13,6 +13,27 @@ $/choice = ["retry"]
 `;
 
 describe("A2uiBlock", () => {
+  it("shows one live copy when a later reply updates the surface", async () => {
+    const blocks = [
+      { key: "m1:0", source: `surface("t")\nroot = Text("first draft")` },
+      { key: "m2:0", source: `surface("t", update=true)\nroot = Text("second draft")` },
+    ];
+    await using screen = await render(
+      <div>
+        {blocks.map((block) => (
+          <A2uiBlock
+            key={block.key}
+            source={block.source}
+            onSendMessage={undefined}
+            thread={{ threadKey: "thread-update-test", blocks, blockKey: block.key }}
+          />
+        ))}
+      </div>,
+    );
+    await expect.element(screen.getByText("second draft")).toBeVisible();
+    await expect.element(screen.getByText("Interactive reply updated below")).toBeVisible();
+    expect(document.body.textContent).not.toContain("first draft");
+  });
   it("sends the user's choice back as a visible message", async () => {
     const onSendMessage = vi.fn(async (_text: string) => {});
     await using screen = await render(<A2uiBlock source={FORM} onSendMessage={onSendMessage} />);

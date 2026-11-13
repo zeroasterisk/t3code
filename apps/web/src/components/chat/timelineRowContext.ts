@@ -21,6 +21,7 @@ import type { WorkflowOpening } from "@t3tools/client-runtime/state/subagentRunt
 import { createContext, type MouseEvent, type ReactNode } from "react";
 import { type LegendListRef } from "@legendapp/list/react";
 import type { CodexArtifactTemplate } from "@t3tools/shared/codexArtifactTemplates";
+import type { A2uiThreadBlock } from "@t3tools/shared/a2uiMessage";
 import type { PendingApproval } from "../../session-logic";
 import { type ChatFileAttachment } from "../../types";
 import { ExpandedImagePreview } from "./ExpandedImagePreview";
@@ -97,6 +98,8 @@ export interface TimelineRowSharedState {
   onWorktreeSetupWorkLocally: (() => void) | null;
   onOpenWorktreeSetupTerminal: ((terminalId: string) => void) | null;
   workGroupViewState: WorkGroupViewState;
+  /** The thread's closed A2UI blocks in order; a later one can update an earlier surface. */
+  a2uiBlocks: ReadonlyArray<A2uiThreadBlock>;
 }
 
 export interface TimelineRowActivityState {

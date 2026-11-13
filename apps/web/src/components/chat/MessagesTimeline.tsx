@@ -20,6 +20,7 @@ import {
   ThreadId,
 } from "@t3tools/contracts";
 import { parseScopedThreadKey } from "@t3tools/client-runtime/environment";
+import { a2uiThreadBlocks } from "@t3tools/shared/a2uiMessage";
 import { resolveWorkGroupScrollAnchor } from "@t3tools/client-runtime/work-log/scroll-anchor";
 import type { WorkflowOpening } from "@t3tools/client-runtime/state/subagentRuntime";
 import { observeResize } from "~/lib/observeResize";
@@ -1049,6 +1050,16 @@ const ConversationTimeline = memo(function ConversationTimeline({
     onWorktreeSetupWorkLocally: onWorktreeSetupWorkLocally ?? null,
     onOpenWorktreeSetupTerminal: onOpenWorktreeSetupTerminal ?? null,
     workGroupViewState,
+    a2uiBlocks: a2uiThreadBlocks(
+      timelineEntries.flatMap((entry) =>
+        entry.kind === "message" &&
+        entry.message.role === "assistant" &&
+        !entry.message.streaming &&
+        entry.message.text.includes("<a2ui>")
+          ? [entry.message]
+          : [],
+      ),
+    ),
   };
   const compactionAwaitingRow =
     isCompacting &&
