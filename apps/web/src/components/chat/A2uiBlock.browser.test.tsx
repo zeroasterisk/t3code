@@ -1,9 +1,10 @@
+import { parseScopedThreadKey } from "@t3tools/client-runtime/environment";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { userEvent } from "vite-plus/test/browser";
 
 import "~/index.css";
 import { render } from "../../../test/render";
-import { useRightPanelStore } from "../../rightPanelStore";
+import { a2uiSurface, useRightPanelStore } from "../../rightPanelStore";
 import A2uiBlock from "./A2uiBlock";
 import A2uiPanel from "./A2uiPanel";
 
@@ -47,6 +48,60 @@ describe("A2uiBlock", () => {
     await expect.element(screen.getByText("Interactive reply open in panel")).toBeVisible();
     await expect.element(screen.getByTestId("panel").getByText("panel draft")).toBeVisible();
     expect(document.body.textContent?.split("panel draft").length).toBe(2);
+  });
+  it("keeps a panel edit when the panel closes and sends the same action from the panel", async () => {
+    const threadKey = "env-1:thread-panel-action";
+    const ref = parseScopedThreadKey(threadKey)!;
+    const blocks = [{ key: "m1:0", source: `surface("f")\n${FORM}` }];
+    const onSendMessage = vi.fn(async (_text: string) => {});
+    function Harness() {
+      const surfaces = useRightPanelStore((state) => state.byThreadKey[threadKey]?.surfaces);
+      return (
+        <div>
+          <div data-testid="timeline">
+            <A2uiBlock
+              source={blocks[0]!.source}
+              onSendMessage={onSendMessage}
+              thread={{ threadKey, blocks, blockKey: "m1:0" }}
+            />
+          </div>
+          <aside data-testid="panel">
+            {(surfaces ?? []).map((surface) =>
+              surface.kind === "a2ui" ? (
+                <A2uiPanel
+                  key={surface.id}
+                  threadKey={surface.threadKey}
+                  surfaceId={surface.surfaceId}
+                />
+              ) : null,
+            )}
+          </aside>
+        </div>
+      );
+    }
+    await using screen = await render(<Harness />);
+    const panel = screen.getByTestId("panel");
+    const timeline = screen.getByTestId("timeline");
+    await screen.getByRole("button", { name: "Open in panel" }).click();
+    await userEvent.click(panel.getByText("Revert"));
+    await vi.waitFor(() =>
+      expect(panel.getByText("Revert").element().closest("[data-pressed]")).not.toBeNull(),
+    );
+
+    // Close the panel: the timeline gets the surface back, with the panel's edit.
+    useRightPanelStore.getState().closeSurface(ref, a2uiSurface(threadKey, "f").id);
+    await expect.element(timeline.getByText("Revert")).toBeVisible();
+    expect(timeline.getByText("Revert").element().closest("[data-pressed]")).not.toBeNull();
+
+    // Open it again and act from the panel: the agent gets the edited value.
+    await screen.getByRole("button", { name: "Open in panel" }).click();
+    await userEvent.click(panel.getByRole("button", { name: "Apply" }));
+    await vi.waitFor(() => expect(onSendMessage).toHaveBeenCalledOnce());
+    const text = onSendMessage.mock.calls[0]![0];
+    expect(text.split("\n")[0]).toBe("Apply");
+    expect(text).toContain('"surfaceId":"f"');
+    expect(text).toContain('"context":{"choice":["revert"]}');
+    await expect.element(panel.getByText("Sent to the agent")).toBeVisible();
   });
   it("shows one live copy when a later reply updates the surface", async () => {
     const blocks = [

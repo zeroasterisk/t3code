@@ -483,20 +483,6 @@ function normalizeRevealLine(line: number | undefined): number | null {
   return Math.max(1, Math.trunc(line));
 }
 
-/** A2UI surfaces live in memory, so their tabs are not saved. */
-function withoutA2uiSurfaces(thread: ThreadRightPanelState): ThreadRightPanelState {
-  if (!thread.surfaces.some((surface) => surface.kind === "a2ui")) return thread;
-  const surfaces = thread.surfaces.filter((surface) => surface.kind !== "a2ui");
-  return {
-    ...thread,
-    surfaces,
-    isOpen: thread.isOpen && surfaces.length > 0,
-    activeSurfaceId: surfaces.some((surface) => surface.id === thread.activeSurfaceId)
-      ? thread.activeSurfaceId
-      : (surfaces[0]?.id ?? null),
-  };
-}
-
 export function migratePersistedRightPanelState(persistedState: unknown): {
   byThreadKey: Record<string, ThreadRightPanelState>;
   threadPanelVisibilityByThreadKey: Record<string, ThreadPanelVisibility>;
@@ -1200,7 +1186,21 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
         byThreadKey: Object.fromEntries(
           Object.entries(state.byThreadKey)
             .filter(([threadKey]) => !isPullRequestsPanelKey(threadKey))
-            .map(([threadKey, thread]) => [threadKey, withoutA2uiSurfaces(thread)]),
+            .map(([threadKey, thread]) => {
+              // A2UI surfaces live in memory, so their tabs are not saved.
+              const surfaces = thread.surfaces.filter((surface) => surface.kind !== "a2ui");
+              if (surfaces.length === thread.surfaces.length) return [threadKey, thread];
+              const keep = surfaces.some((surface) => surface.id === thread.activeSurfaceId);
+              return [
+                threadKey,
+                {
+                  ...thread,
+                  surfaces,
+                  isOpen: thread.isOpen && surfaces.length > 0,
+                  activeSurfaceId: keep ? thread.activeSurfaceId : (surfaces[0]?.id ?? null),
+                },
+              ];
+            }),
         ),
         threadPanelVisibilityByThreadKey: Object.fromEntries(
           Object.entries(state.threadPanelVisibilityByThreadKey).flatMap(
