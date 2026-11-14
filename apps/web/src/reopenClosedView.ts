@@ -139,6 +139,9 @@ export async function reopenClosedView(
     case "side-chat":
       panels.openSideChat(ref, surface.threadId);
       break;
+    case "a2ui":
+      // In memory only: the surface may be gone, so it is never reopened.
+      return false;
     default:
       panels.open(ref, surface.kind);
   }

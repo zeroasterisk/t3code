@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from "vite-plus/test";
 import { useClosedViewStore } from "./closedViewStore";
 import { reopenClosedView } from "./reopenClosedView";
 import {
+  a2uiSurface,
   hostRightPanel,
   migratePersistedRightPanelState,
   pullRequestSurface,
@@ -1237,5 +1238,42 @@ describe("rightPanelStore", () => {
     store.reconcileBrowserSurfaces(refA, ["tab-a", "tab-b"]);
     expect(surfaceIds()).toEqual(["browser:tab-a", "terminal:term-1", "diff", "browser:tab-b"]);
     expect(store.getUserActionRevision(refA)).toBe(revision);
+  });
+});
+
+describe("a2ui surfaces", () => {
+  const threadKey = "env-1:thread-A";
+  const surfaceIds = (ref = refA) =>
+    selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, ref).surfaces.map(
+      (surface) => surface.id,
+    );
+
+  it("opens one tab per surface and focuses it again on repeat opens", () => {
+    const store = useRightPanelStore.getState();
+    store.openA2uiSurface(refA, threadKey, "form");
+    store.open(refA, "diff");
+    store.openA2uiSurface(refA, threadKey, "form");
+    const state = selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, refA);
+    expect(surfaceIds()).toEqual([a2uiSurface(threadKey, "form").id, "diff"]);
+    expect(state.isOpen).toBe(true);
+    expect(state.activeSurfaceId).toBe(a2uiSurface(threadKey, "form").id);
+  });
+
+  it("is not saved: a reload drops the tab and keeps the rest", async () => {
+    const store = useRightPanelStore.getState();
+    store.open(refA, "diff");
+    store.openA2uiSurface(refA, threadKey, "form");
+    await reloadRightPanelStore();
+    const state = selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, refA);
+    expect(surfaceIds()).toEqual(["diff"]);
+    expect(state.activeSurfaceId).toBe("diff");
+  });
+
+  it("is not recorded as a closed view, so it is never reopened", () => {
+    const store = useRightPanelStore.getState();
+    store.openA2uiSurface(refA, threadKey, "form");
+    store.closeSurface(refA, a2uiSurface(threadKey, "form").id);
+    expect(useClosedViewStore.getState().entries).toEqual([]);
+    expect(surfaceIds()).toEqual([]);
   });
 });

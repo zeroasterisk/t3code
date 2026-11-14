@@ -22,6 +22,7 @@ const RIGHT_PANEL_KINDS = [
   "pull-request",
   "pull-requests",
   "side-chat",
+  "a2ui",
 ] as const;
 export type RightPanelKind = (typeof RIGHT_PANEL_KINDS)[number];
 
@@ -76,7 +77,9 @@ export type RightPanelSurface =
       detailTab?: PullRequestDetailTab;
     }
   | { id: "pull-requests"; kind: "pull-requests" }
-  | { id: `side-chat:${string}`; kind: "side-chat"; threadId: ThreadId };
+  | { id: `side-chat:${string}`; kind: "side-chat"; threadId: ThreadId }
+  /** A live A2UI surface from a thread's replies. In memory only: never saved or reopened. */
+  | { id: `a2ui:${string}`; kind: "a2ui"; threadKey: string; surfaceId: string };
 
 const RIGHT_PANEL_STORAGE_KEY = "t3code:right-panel-state:v2";
 const RIGHT_PANEL_STORAGE_VERSION = 14;
@@ -123,9 +126,10 @@ interface RightPanelStoreState {
   ) => boolean;
   open: (
     ref: ScopedThreadRef,
-    kind: Exclude<RightPanelKind, "file" | "terminal" | "pull-request" | "side-chat">,
+    kind: Exclude<RightPanelKind, "file" | "terminal" | "pull-request" | "side-chat" | "a2ui">,
   ) => void;
   openSideChat: (ref: ScopedThreadRef, threadId: ThreadId) => void;
+  openA2uiSurface: (ref: ScopedThreadRef, threadKey: string, surfaceId: string) => void;
   openDevice: (ref: ScopedThreadRef, target: DeviceTabTarget, automatic?: boolean) => void;
   renameDevice: (ref: ScopedThreadRef, surfaceId: string, title: string) => void;
   openBrowser: (ref: ScopedThreadRef, tabId: string | null) => void;
@@ -185,7 +189,7 @@ interface RightPanelStoreState {
   toggleVisibility: (ref: ScopedThreadRef) => void;
   toggle: (
     ref: ScopedThreadRef,
-    kind: Exclude<RightPanelKind, "file" | "terminal" | "pull-request" | "side-chat">,
+    kind: Exclude<RightPanelKind, "file" | "terminal" | "pull-request" | "side-chat" | "a2ui">,
   ) => void;
   setThreadPanelOpen: (
     ref: ScopedThreadRef,
@@ -207,8 +211,18 @@ const DEFAULT_THREAD_PANEL_VISIBILITY: ThreadPanelVisibility = {
   popoverOpen: false,
 };
 
+export const a2uiSurface = (threadKey: string, surfaceId: string): RightPanelSurface => ({
+  id: `a2ui:${threadKey}:${surfaceId}`,
+  kind: "a2ui",
+  threadKey,
+  surfaceId,
+});
+
 const singletonSurface = (
-  kind: Exclude<RightPanelKind, "file" | "preview" | "terminal" | "pull-request" | "side-chat">,
+  kind: Exclude<
+    RightPanelKind,
+    "file" | "preview" | "terminal" | "pull-request" | "side-chat" | "a2ui"
+  >,
 ): RightPanelSurface => {
   switch (kind) {
     case "diff":
@@ -469,6 +483,20 @@ function normalizeRevealLine(line: number | undefined): number | null {
   return Math.max(1, Math.trunc(line));
 }
 
+/** A2UI surfaces live in memory, so their tabs are not saved. */
+function withoutA2uiSurfaces(thread: ThreadRightPanelState): ThreadRightPanelState {
+  if (!thread.surfaces.some((surface) => surface.kind === "a2ui")) return thread;
+  const surfaces = thread.surfaces.filter((surface) => surface.kind !== "a2ui");
+  return {
+    ...thread,
+    surfaces,
+    isOpen: thread.isOpen && surfaces.length > 0,
+    activeSurfaceId: surfaces.some((surface) => surface.id === thread.activeSurfaceId)
+      ? thread.activeSurfaceId
+      : (surfaces[0]?.id ?? null),
+  };
+}
+
 export function migratePersistedRightPanelState(persistedState: unknown): {
   byThreadKey: Record<string, ThreadRightPanelState>;
   threadPanelVisibilityByThreadKey: Record<string, ThreadPanelVisibility>;
@@ -489,7 +517,7 @@ export function migratePersistedRightPanelState(persistedState: unknown): {
               const surfaces = Array.isArray(validThreadState?.surfaces)
                 ? validThreadState.surfaces.flatMap<RightPanelSurface>((surface) => {
                     const kind = (surface as { kind?: string }).kind;
-                    if (kind === "plan" || kind === "agents") return [];
+                    if (kind === "plan" || kind === "agents" || kind === "a2ui") return [];
                     if (
                       (surface.kind === "file" || surface.kind === "files") &&
                       "folderTrail" in surface &&
@@ -724,6 +752,12 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
         set((state) =>
           userAction(state, scopedThreadKey(ref), (current) =>
             upsertSurface(current, { id: `side-chat:${threadId}`, kind: "side-chat", threadId }),
+          ),
+        ),
+      openA2uiSurface: (ref, threadKey, surfaceId) =>
+        set((state) =>
+          userAction(state, scopedThreadKey(ref), (current) =>
+            upsertSurface(current, a2uiSurface(threadKey, surfaceId)),
           ),
         ),
       renameDevice: (ref, surfaceId, title) =>
@@ -1164,9 +1198,9 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
       ),
       partialize: (state) => ({
         byThreadKey: Object.fromEntries(
-          Object.entries(state.byThreadKey).filter(
-            ([threadKey]) => !isPullRequestsPanelKey(threadKey),
-          ),
+          Object.entries(state.byThreadKey)
+            .filter(([threadKey]) => !isPullRequestsPanelKey(threadKey))
+            .map(([threadKey, thread]) => [threadKey, withoutA2uiSurfaces(thread)]),
         ),
         threadPanelVisibilityByThreadKey: Object.fromEntries(
           Object.entries(state.threadPanelVisibilityByThreadKey).flatMap(
@@ -1198,6 +1232,7 @@ useRightPanelStore.subscribe((next, previous) => {
     for (const surface of closedInOrder) {
       if (
         surface.kind === "terminal" ||
+        surface.kind === "a2ui" ||
         (surface.kind === "preview" && surface.resourceId !== null)
       )
         continue;

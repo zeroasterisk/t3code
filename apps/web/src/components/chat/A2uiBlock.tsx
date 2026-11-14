@@ -3,8 +3,16 @@
 // In a thread, blocks share one processor (`a2uiThread`), so a later reply can update an earlier
 // reply's surface; the earlier block then says "updated below" and one live copy stays.
 import { A2uiSurface } from "@a2ui/react";
+import { parseScopedThreadKey } from "@t3tools/client-runtime/environment";
+import { PanelRightOpenIcon } from "lucide-react";
 import { useState, useSyncExternalStore } from "react";
 
+import {
+  rightPanelHostRef,
+  selectThreadRightPanelState,
+  useRightPanelStore,
+} from "../../rightPanelStore";
+import { Button } from "../ui/button";
 import { A2uiPending } from "./A2uiPending";
 import { A2uiThreadStore, a2uiThreadStore, type A2uiThreadBlock } from "./a2uiThread";
 
@@ -33,6 +41,26 @@ export default function A2uiBlock({
   const version = useSyncExternalStore(store.subscribe, store.getVersion);
   // Reads take `version` so the React Compiler re-derives them when the store changes.
   const view = store.view(blockKey, version);
+  // A thread block can open its surfaces in the right panel; a standalone block can't.
+  const panelRef = thread ? parseScopedThreadKey(thread.threadKey) : null;
+  // Surface ids this thread has open in the panel, as one string so the selector stays stable.
+  const inPanelIds = useRightPanelStore((state) =>
+    panelRef && thread
+      ? selectThreadRightPanelState(state.byThreadKey, rightPanelHostRef(panelRef))
+          .surfaces.flatMap((surface) =>
+            surface.kind === "a2ui" && surface.threadKey === thread.threadKey
+              ? [surface.surfaceId]
+              : [],
+          )
+          .join("\n")
+      : "",
+  );
+  const inPanel = new Set(inPanelIds.split("\n"));
+  const openInPanel = (surfaceId: string) => {
+    if (panelRef && thread) {
+      useRightPanelStore.getState().openA2uiSurface(panelRef, thread.threadKey, surfaceId);
+    }
+  };
 
   const result = view.result;
   if (!result) return <A2uiPending />;
@@ -57,7 +85,8 @@ export default function A2uiBlock({
     );
   }
 
-  // Each surface stays live in the block that last drew it, so one copy can be edited.
+  // Each surface stays live in the block that last drew it, so one copy can be edited. A surface
+  // open in the right panel is live there instead, and this row says so.
   const live = view.live;
   if (live.length === 0) {
     return (
@@ -77,26 +106,54 @@ export default function A2uiBlock({
         const surface = view.surfaces[index];
         const sent = states[index];
         const locked = !onSendMessage || sent === "sending" || sent === "sent";
-        return surface ? (
-          // `inert` also locks Base UI controls, which ignore `<fieldset disabled>`.
-          <div
-            key={surfaceId}
-            inert={locked}
-            data-a2ui-locked={locked || undefined}
-            className={
-              locked && onSendMessage ? "flex flex-col gap-2 opacity-64" : "flex flex-col gap-2"
-            }
-          >
-            <A2uiSurface surface={surface} />
+        if (!surface) return null;
+        if (panelRef && inPanel.has(surfaceId)) {
+          return (
+            <div
+              key={surfaceId}
+              data-a2ui-in-panel
+              className="flex items-center gap-1 text-xs text-muted-foreground"
+            >
+              <span>Interactive reply open in panel</span>
+              <Button size="xs" variant="ghost" onClick={() => openInPanel(surfaceId)}>
+                Show
+              </Button>
+            </div>
+          );
+        }
+        return (
+          <div key={surfaceId} className="flex flex-col gap-1">
+            {panelRef ? (
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                className="self-end"
+                aria-label="Open in panel"
+                title="Open in panel"
+                onClick={() => openInPanel(surfaceId)}
+              >
+                <PanelRightOpenIcon />
+              </Button>
+            ) : null}
+            {/* `inert` also locks Base UI controls, which ignore `<fieldset disabled>`. */}
+            <div
+              inert={locked}
+              data-a2ui-locked={locked || undefined}
+              className={
+                locked && onSendMessage ? "flex flex-col gap-2 opacity-64" : "flex flex-col gap-2"
+              }
+            >
+              <A2uiSurface surface={surface} />
+            </div>
+            {sent === "sent" ? (
+              <p className="text-xs text-muted-foreground">Sent to the agent</p>
+            ) : null}
+            {sent === "failed" ? (
+              <p className="text-xs text-destructive-foreground">Could not send. Try again.</p>
+            ) : null}
           </div>
-        ) : null;
+        );
       })}
-      {states.includes("sent") ? (
-        <p className="text-xs text-muted-foreground">Sent to the agent</p>
-      ) : null}
-      {states.includes("failed") ? (
-        <p className="text-xs text-destructive-foreground">Could not send. Try again.</p>
-      ) : null}
     </div>
   );
 }

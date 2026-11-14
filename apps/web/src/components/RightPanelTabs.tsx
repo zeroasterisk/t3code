@@ -45,6 +45,7 @@ import {
   Globe2,
   MessagesSquare,
   Plus,
+  SquareMousePointer,
   TerminalSquare,
 } from "lucide-react";
 import { Volume2, VolumeOff } from "lucide";
@@ -594,6 +595,8 @@ function surfaceTitle(
       return surface.title ?? surface.target?.name ?? "Device";
     case "side-chat":
       return "Side chat";
+    case "a2ui":
+      return "Interactive reply";
     case "preview": {
       const snapshot = surface.resourceId ? sessions[surface.resourceId] : null;
       if (!snapshot || snapshot.navStatus._tag === "Idle") return "Browser";
@@ -684,6 +687,8 @@ function SurfaceIcon({
       return <PullRequestGlyph.link className="size-3 shrink-0" />;
     case "side-chat":
       return <SideChatTabIcon environmentId={environmentId} threadId={surface.threadId} />;
+    case "a2ui":
+      return <SquareMousePointer className="size-3 shrink-0" />;
     case "device":
       return surface.target?.platform === "ios" ? (
         <AppleIcon className="size-3 shrink-0" />

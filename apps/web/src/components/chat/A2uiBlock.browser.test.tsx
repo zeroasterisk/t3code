@@ -3,7 +3,9 @@ import { userEvent } from "vite-plus/test/browser";
 
 import "~/index.css";
 import { render } from "../../../test/render";
+import { useRightPanelStore } from "../../rightPanelStore";
 import A2uiBlock from "./A2uiBlock";
+import A2uiPanel from "./A2uiPanel";
 
 const FORM = `
 pick = ChoicePicker(options=[{label: "Retry", value: "retry"}, {label: "Revert", value: "revert"}], value=$/choice, variant="mutuallyExclusive")
@@ -13,6 +15,39 @@ $/choice = ["retry"]
 `;
 
 describe("A2uiBlock", () => {
+  it("opens a surface in the right panel and keeps one live copy there", async () => {
+    const threadKey = "env-1:thread-panel-test";
+    const blocks = [{ key: "m1:0", source: `surface("p")\nroot = Text("panel draft")` }];
+    function Harness() {
+      const surfaces = useRightPanelStore((state) => state.byThreadKey[threadKey]?.surfaces);
+      return (
+        <div>
+          <A2uiBlock
+            source={blocks[0]!.source}
+            onSendMessage={undefined}
+            thread={{ threadKey, blocks, blockKey: "m1:0" }}
+          />
+          <aside data-testid="panel">
+            {(surfaces ?? []).map((surface) =>
+              surface.kind === "a2ui" ? (
+                <A2uiPanel
+                  key={surface.id}
+                  threadKey={surface.threadKey}
+                  surfaceId={surface.surfaceId}
+                />
+              ) : null,
+            )}
+          </aside>
+        </div>
+      );
+    }
+    await using screen = await render(<Harness />);
+    await expect.element(screen.getByText("panel draft")).toBeVisible();
+    await screen.getByRole("button", { name: "Open in panel" }).click();
+    await expect.element(screen.getByText("Interactive reply open in panel")).toBeVisible();
+    await expect.element(screen.getByTestId("panel").getByText("panel draft")).toBeVisible();
+    expect(document.body.textContent?.split("panel draft").length).toBe(2);
+  });
   it("shows one live copy when a later reply updates the surface", async () => {
     const blocks = [
       { key: "m1:0", source: `surface("t")\nroot = Text("first draft")` },

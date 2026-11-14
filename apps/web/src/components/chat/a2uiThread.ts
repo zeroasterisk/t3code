@@ -155,6 +155,16 @@ export class A2uiThreadStore {
     };
   }
 
+  /** What the panel shows for one surface. `_version` as in `view`. */
+  panelView(surfaceId: string, _version: number) {
+    return { surface: this.surface(surfaceId), sent: this.sent(surfaceId) };
+  }
+
+  /** Whether an action can reach the agent (a rendered block set the thread's send function). */
+  canSend(): boolean {
+    return this.sendMessage !== undefined;
+  }
+
   result(key: string): A2uiBlockResult | undefined {
     return this.results.get(key);
   }
