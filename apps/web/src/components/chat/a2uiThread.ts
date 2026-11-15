@@ -46,8 +46,9 @@ export class A2uiThreadStore {
   }
 
   /**
-   * Applies the thread's closed blocks, in order. Blocks already applied are skipped, so calling
-   * it again with the same list (re-render, StrictMode) changes nothing. If an applied block
+   * Applies the thread's closed blocks, in order. Call it from an effect or a state initializer,
+   * never during render. Blocks already applied are skipped, so calling it again with the same
+   * list (StrictMode) changes nothing. If an applied block
    * changed or went away, the processor is rebuilt and every block replayed.
    */
   sync(blocks: readonly A2uiThreadBlock[]) {
@@ -64,8 +65,7 @@ export class A2uiThreadStore {
       this.seen.add(block.key);
     }
     this.applied = [...blocks];
-    // Render calls this; subscribers re-render after the commit, not during it.
-    queueMicrotask(() => this.notify());
+    this.notify();
   }
 
   private apply(block: A2uiThreadBlock, fresh: boolean) {

@@ -27,9 +27,19 @@ export function useA2uiPanel(threadKey: string | undefined) {
           .join("\n")
       : "",
   );
+  // The surface showing in the open panel, if it is one of this thread's.
+  const shown = useRightPanelStore((state) => {
+    if (!ref) return null;
+    const panel = selectThreadRightPanelState(state.byThreadKey, rightPanelHostRef(ref));
+    const active = panel.isOpen
+      ? panel.surfaces.find((surface) => surface.id === panel.activeSurfaceId)
+      : undefined;
+    return active?.kind === "a2ui" && active.threadKey === threadKey ? active.surfaceId : null;
+  });
   if (!ref || !threadKey) return null;
   return {
     inPanel: new Set(ids ? ids.split("\n") : []),
+    shown,
     open: (surfaceId: string) =>
       useRightPanelStore.getState().openA2uiSurface(ref, threadKey, surfaceId),
   };
@@ -76,9 +86,11 @@ export function A2uiSurfaceRow({
     return (
       <div data-a2ui-in-panel className="flex items-center gap-1 text-xs text-muted-foreground">
         <span>Interactive reply open in panel</span>
-        <Button size="xs" variant="ghost" onClick={() => panel.open(surfaceId)}>
-          Show
-        </Button>
+        {panel.shown === surfaceId ? null : (
+          <Button size="xs" variant="ghost" onClick={() => panel.open(surfaceId)}>
+            Show
+          </Button>
+        )}
       </div>
     );
   }

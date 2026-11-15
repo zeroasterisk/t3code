@@ -59,7 +59,6 @@ export function AssistantTimelineRow({ row }: { row: Extract<TimelineRow, { kind
                       onSendMessage={ctx.onSendAppMessage}
                       thread={{
                         threadKey: ctx.routeThreadKey,
-                        blocks: ctx.a2uiBlocks,
                         blockKey: a2uiBlockKey(row.message.id, segment.offset),
                       }}
                     />

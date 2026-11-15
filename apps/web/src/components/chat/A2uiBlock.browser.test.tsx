@@ -7,6 +7,7 @@ import { render } from "../../../test/render";
 import { a2uiSurface, useRightPanelStore } from "../../rightPanelStore";
 import A2uiBlock from "./A2uiBlock";
 import A2uiPanel from "./A2uiPanel";
+import A2uiThreadSync from "./A2uiThreadSync";
 
 const FORM = `
 pick = ChoicePicker(options=[{label: "Retry", value: "retry"}, {label: "Revert", value: "revert"}], value=$/choice, variant="mutuallyExclusive")
@@ -23,10 +24,11 @@ describe("A2uiBlock", () => {
       const surfaces = useRightPanelStore((state) => state.byThreadKey[threadKey]?.surfaces);
       return (
         <div>
+          <A2uiThreadSync threadKey={threadKey} blocks={blocks} onSendMessage={undefined} />
           <A2uiBlock
             source={blocks[0]!.source}
             onSendMessage={undefined}
-            thread={{ threadKey, blocks, blockKey: "m1:0" }}
+            thread={{ threadKey, blockKey: "m1:0" }}
           />
           <aside data-testid="panel">
             {(surfaces ?? []).map((surface) =>
@@ -59,10 +61,11 @@ describe("A2uiBlock", () => {
       return (
         <div>
           <div data-testid="timeline">
+            <A2uiThreadSync threadKey={threadKey} blocks={blocks} onSendMessage={onSendMessage} />
             <A2uiBlock
               source={blocks[0]!.source}
               onSendMessage={onSendMessage}
-              thread={{ threadKey, blocks, blockKey: "m1:0" }}
+              thread={{ threadKey, blockKey: "m1:0" }}
             />
           </div>
           <aside data-testid="panel">
@@ -110,12 +113,13 @@ describe("A2uiBlock", () => {
     ];
     await using screen = await render(
       <div>
+        <A2uiThreadSync threadKey="thread-update-test" blocks={blocks} onSendMessage={undefined} />
         {blocks.map((block) => (
           <A2uiBlock
             key={block.key}
             source={block.source}
             onSendMessage={undefined}
-            thread={{ threadKey: "thread-update-test", blocks, blockKey: block.key }}
+            thread={{ threadKey: "thread-update-test", blockKey: block.key }}
           />
         ))}
       </div>,
@@ -123,6 +127,41 @@ describe("A2uiBlock", () => {
     await expect.element(screen.getByText("second draft")).toBeVisible();
     await expect.element(screen.getByText("Interactive reply updated below")).toBeVisible();
     expect(document.body.textContent).not.toContain("first draft");
+  });
+  it("shows the panel's surface when no timeline row is mounted", async () => {
+    const threadKey = "env-1:thread-panel-alone";
+    const ref = parseScopedThreadKey(threadKey)!;
+    const blocks = [{ key: "m1:0", source: `surface("q")\nroot = Text("panel only")` }];
+    useRightPanelStore.getState().openA2uiSurface(ref, threadKey, "q");
+    // The row that drew it is virtualized away: only the timeline-level sync and the panel mount.
+    await using screen = await render(
+      <div>
+        <A2uiThreadSync threadKey={threadKey} blocks={blocks} onSendMessage={undefined} />
+        <A2uiPanel threadKey={threadKey} surfaceId="q" />
+      </div>,
+    );
+    await expect.element(screen.getByText("panel only")).toBeVisible();
+    expect(document.querySelector("[data-a2ui-panel-missing]")).toBeNull();
+  });
+  it("hides Show while the panel shows the surface, and offers it once another tab is active", async () => {
+    const threadKey = "env-1:thread-panel-show";
+    const ref = parseScopedThreadKey(threadKey)!;
+    const blocks = [{ key: "m1:0", source: `surface("s")\nroot = Text("show draft")` }];
+    await using screen = await render(
+      <div>
+        <A2uiThreadSync threadKey={threadKey} blocks={blocks} onSendMessage={undefined} />
+        <A2uiBlock
+          source={blocks[0]!.source}
+          onSendMessage={undefined}
+          thread={{ threadKey, blockKey: "m1:0" }}
+        />
+      </div>,
+    );
+    await screen.getByRole("button", { name: "Open in panel" }).click();
+    await expect.element(screen.getByText("Interactive reply open in panel")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Show" }).query()).toBeNull();
+    useRightPanelStore.getState().openA2uiSurface(ref, threadKey, "other");
+    await expect.element(screen.getByRole("button", { name: "Show" })).toBeVisible();
   });
   it("sends the user's choice back as a visible message", async () => {
     const onSendMessage = vi.fn(async (_text: string) => {});

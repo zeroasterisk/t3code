@@ -6,7 +6,7 @@ import { useState, useSyncExternalStore } from "react";
 
 import { A2uiPending } from "./A2uiPending";
 import { A2uiSurfaceRow, useA2uiPanel } from "./A2uiSurfaceRow";
-import { A2uiThreadStore, a2uiThreadStore, type A2uiThreadBlock } from "./a2uiThread";
+import { A2uiThreadStore, a2uiThreadStore } from "./a2uiThread";
 
 export default function A2uiBlock({
   source,
@@ -15,21 +15,13 @@ export default function A2uiBlock({
 }: {
   readonly source: string;
   readonly onSendMessage: ((text: string) => Promise<void>) | undefined;
-  /** The thread's closed blocks in order, and this block's key. Absent, the block stands alone. */
-  readonly thread?:
-    | {
-        readonly threadKey: string;
-        readonly blocks: readonly A2uiThreadBlock[];
-        readonly blockKey: string;
-      }
-    | undefined;
+  /** The thread, and this block's key. The timeline syncs the thread (`A2uiThreadSync`). */
+  readonly thread?: { readonly threadKey: string; readonly blockKey: string } | undefined;
 }) {
-  const [ownStore] = useState(() => new A2uiThreadStore());
-  const store = thread ? a2uiThreadStore(thread.threadKey) : ownStore;
+  // A standalone block owns its store, built once with its one block.
+  const [ownStore] = useState(() => (thread ? null : standaloneStore(source, onSendMessage)));
+  const store = thread ? a2uiThreadStore(thread.threadKey) : ownStore!;
   const blockKey = thread?.blockKey ?? "block";
-  // Idempotent: blocks already applied are skipped, so re-renders keep the edited data model.
-  store.sync(thread?.blocks ?? [{ key: blockKey, source }]);
-  store.setSendMessage(onSendMessage);
   const version = useSyncExternalStore(store.subscribe, store.getVersion);
   // Reads take `version` so the React Compiler re-derives them when the store changes.
   const view = store.view(blockKey, version);
@@ -95,4 +87,14 @@ export default function A2uiBlock({
       })}
     </div>
   );
+}
+
+function standaloneStore(
+  source: string,
+  onSendMessage: ((text: string) => Promise<void>) | undefined,
+): A2uiThreadStore {
+  const store = new A2uiThreadStore();
+  store.sync([{ key: "block", source }]);
+  store.setSendMessage(onSendMessage);
+  return store;
 }

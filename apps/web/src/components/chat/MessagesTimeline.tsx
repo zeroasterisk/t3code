@@ -31,11 +31,15 @@ const EMPTY_PENDING_APPROVALS: ReadonlyArray<PendingApproval> = [];
 const EMPTY_RESPONDING_REQUEST_IDS: TimelineRowSharedState["respondingRequestIds"] = [];
 
 const NOOP_OPEN_ATTACHMENT = (_attachment: ChatFileAttachment) => {};
+// Syncs the thread's A2UI store; lazy, it pulls in the Express parser.
+const A2uiThreadSync = lazy(() => import("./A2uiThreadSync"));
 
 import { resolveChatListAnchoredEndSpace } from "@t3tools/shared/chatList";
 import { observeVisibleAnimation } from "../../lib/visibleAnimation";
 import {
+  lazy,
   memo,
+  Suspense,
   use,
   useContext,
   useLayoutEffect,
@@ -1050,16 +1054,17 @@ const ConversationTimeline = memo(function ConversationTimeline({
     onWorktreeSetupWorkLocally: onWorktreeSetupWorkLocally ?? null,
     onOpenWorktreeSetupTerminal: onOpenWorktreeSetupTerminal ?? null,
     workGroupViewState,
-    a2uiBlocks: a2uiThreadBlocks(
-      timelineEntries.flatMap((entry) =>
-        entry.kind === "message" &&
-        entry.message.role === "assistant" &&
-        entry.message.text.includes("<a2ui>")
-          ? [entry.message]
-          : [],
-      ),
-    ),
   };
+  // The thread's closed A2UI blocks in order; a later one can update an earlier surface.
+  const a2uiBlocks = a2uiThreadBlocks(
+    timelineEntries.flatMap((entry) =>
+      entry.kind === "message" &&
+      entry.message.role === "assistant" &&
+      entry.message.text.includes("<a2ui>")
+        ? [entry.message]
+        : [],
+    ),
+  );
   const compactionAwaitingRow =
     isCompacting &&
     !rows.some(
@@ -1300,6 +1305,15 @@ const ConversationTimeline = memo(function ConversationTimeline({
   return (
     <>
       {activityAnnouncer}
+      {a2uiBlocks.length > 0 ? (
+        <Suspense fallback={null}>
+          <A2uiThreadSync
+            threadKey={routeThreadKey}
+            blocks={a2uiBlocks}
+            onSendMessage={onSendAppMessage}
+          />
+        </Suspense>
+      ) : null}
       <MarkdownFindContext value={findActive}>
         <TimelineRowActivityCtx value={activityState}>
           <TooltipScrollDismissArea
