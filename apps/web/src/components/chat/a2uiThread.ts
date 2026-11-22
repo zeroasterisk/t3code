@@ -107,6 +107,10 @@ export class A2uiThreadStore {
   private async send(action: Parameters<ActionHandler>[0]) {
     const sendMessage = this.sendMessage;
     if (!sendMessage) return;
+    // One answer per surface: the lock lands a render later, so a fast second click or a
+    // programmatic dispatch must not send twice. A failed send may be retried.
+    const current = this.sentBySurfaceId.get(action.surfaceId);
+    if (current === "sending" || current === "sent") return;
     this.setSent(action.surfaceId, "sending");
     try {
       await sendMessage(a2uiActionMessage(action));
