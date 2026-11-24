@@ -237,6 +237,10 @@ minimumReleaseAgeExclude:
   - "@cursor/sdk-win32-x64@1.2.0"
   - "@cursor/sdk@1.2.0"
   - "@distilled.cloud/aws@1.0.0-rc.18"
+  - "@a2ui/agent@0.2.1"
+  - "@a2ui/markdown-it@0.2.4"
+  - "@a2ui/react@0.16.1"
+  - "@a2ui/web_core@0.16.1"
 
 overrides:
   # Pin every patched package, including transitive dependencies, so lockfile-free
