@@ -89,7 +89,12 @@ function FieldError({ props }: { props: Props }) {
 const components: ReactCatalogComponent[] = [
   component("Text", (props) => (
     // Inherit color so a Button's label follows the button variant.
-    <p className={cn("text-sm", props.variant === "caption" && "text-xs text-muted-foreground")}>
+    <p
+      className={cn(
+        "text-sm wrap-break-word",
+        props.variant === "caption" && "text-xs text-muted-foreground",
+      )}
+    >
       {str(props.text)}
     </p>
   )),
@@ -224,7 +229,7 @@ const components: ReactCatalogComponent[] = [
           // A few short exclusive options read best as the host's segmented control.
           <ToggleGroup
             aria-label={str(props.label) || undefined}
-            className="w-full *:flex-1"
+            className="w-full flex-wrap *:flex-auto"
             value={selected.slice(0, 1)}
             onValueChange={(next) => {
               if (next[0] !== undefined) props.setValue?.([String(next[0])]);

@@ -1,6 +1,6 @@
 import { parseScopedThreadKey } from "@t3tools/client-runtime/environment";
 import { describe, expect, it, vi } from "vite-plus/test";
-import { userEvent } from "vite-plus/test/browser";
+import { page, userEvent } from "vite-plus/test/browser";
 
 import "~/index.css";
 import { render } from "../../../test/render";
@@ -221,6 +221,30 @@ $/notify = false
     expect(locked.getBoundingClientRect().height).toBeGreaterThan(0);
     expect(Number(getComputedStyle(locked).opacity)).toBeLessThan(1);
     expect(locked.querySelector('[role="checkbox"]')?.getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("keeps long words and segmented choices inside a narrow column at 1.5x text", async () => {
+    await page.viewport(360, 800);
+    const style = document.createElement("style");
+    style.textContent = "html { font-size: 150%; }";
+    document.head.append(style);
+    try {
+      const source = `
+title = Text("Run b7f3c1e9d2a4f6081357924680acebdf1234567890abcdef failed")
+pick = ChoicePicker(options=[{label: "Retry", value: "retry"}, {label: "Revert", value: "revert"}, {label: "Quarantine", value: "quarantine"}], value=$/choice, variant="mutuallyExclusive")
+root = Column([title, pick])
+$/choice = ["retry"]
+`;
+      await using _screen = await render(<A2uiBlock source={source} onSendMessage={undefined} />);
+      const surface = document.querySelector("[data-a2ui-surface]") as HTMLElement;
+      for (const node of [surface, ...surface.querySelectorAll<HTMLElement>("*")]) {
+        expect(node.scrollWidth, node.textContent ?? "").toBeLessThanOrEqual(node.clientWidth + 1);
+      }
+      expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(360);
+    } finally {
+      style.remove();
+      await page.viewport(1280, 800);
+    }
   });
 
   it("blocks components outside the catalog without rendering them", async () => {
