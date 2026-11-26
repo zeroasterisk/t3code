@@ -1,9 +1,11 @@
 import { assert, describe, it } from "@effect/vitest";
 
 import {
+  A2UI_POINTER,
   T3_CODE_DEVICE_TOOL_INSTRUCTIONS,
   T3_CODE_DEVICE_TOOL_INSTRUCTIONS_WITH_TOOL_SEARCH,
   T3_CODE_ORCHESTRATION_INSTRUCTIONS,
+  T3_CODE_ORCHESTRATION_SECTIONS,
   t3AcpPromptWithInstructions,
   t3OrchestrationPrompt,
   t3OrchestrationSystemPrompt,
@@ -81,5 +83,34 @@ describe("T3 device instructions", () => {
       "Again.",
     );
     assert.notInclude(t3AcpPromptWithInstructions({ prompt: "Hi.", state }), "## T3 Code devices");
+  });
+});
+
+describe("A2UI pointer", () => {
+  const bytes = (text: string) => new TextEncoder().encode(text).length;
+
+  it("stays under 1 KB, teaches the wire without a fence, and names both tools", () => {
+    assert.isAtMost(bytes(A2UI_POINTER), 1024);
+    for (const fact of [
+      "<a2ui>",
+      "</a2ui>",
+      "update=true",
+      "code fence",
+      "basic catalog",
+      "a2ui-action",
+      "a2ui_rules",
+      "a2ui_check",
+    ]) {
+      assert.include(A2UI_POINTER, fact);
+    }
+    assert.notInclude(A2UI_POINTER, "```");
+  });
+
+  it("reaches every provider through the visuals section, which stays under Codex's 4,000 B limit", () => {
+    const visuals = T3_CODE_ORCHESTRATION_SECTIONS.find((s) => s.startsWith("### Visuals"));
+    assert.isDefined(visuals);
+    assert.include(visuals!, A2UI_POINTER);
+    for (const section of T3_CODE_ORCHESTRATION_SECTIONS) assert.isBelow(bytes(section), 4000);
+    assert.include(T3_CODE_ORCHESTRATION_INSTRUCTIONS, A2UI_POINTER);
   });
 });

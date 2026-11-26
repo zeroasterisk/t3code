@@ -1,5 +1,8 @@
 import type { ProviderInteractionMode } from "@t3tools/contracts";
 
+/** Always-on A2UI pointer (≤1 KB); the full rules come from the `a2ui_rules` tool on demand. */
+export const A2UI_POINTER = `When a choice, form or confirmation is easier to answer than to type, reply with an interactive reply: prose, then an <a2ui>…</a2ui> block of A2UI Express on its own lines (never a code fence; a fenced block shows as source). Use the basic catalog only. To change a surface you drew earlier in this thread, start the block with surface("<id>", update=true). The user's answer comes back as a message with an a2ui-action block. Call a2ui_rules before your first interactive reply, and a2ui_check on your draft before you send it.`;
+
 // Codex truncates entries over 4,000 bytes; keep each section self-contained and below that limit.
 export const T3_CODE_ORCHESTRATION_SECTIONS: ReadonlyArray<string> = [
   `## T3 Code orchestration
@@ -21,7 +24,8 @@ Ordinary coding tasks need no T3 tools.
   `### Visuals and preview
 
 - Answer data with a trend or comparison with a chart, and show any visual the user asks for here: pass its HTML to \`html_preview\`, then \`html_render\`. If the visual is a file, pass that file's HTML. A screenshot on disk or a text description does not show it. Never start a server for it. Tools a web page exposes give data only. Never use them to show results. Asked for an image to post, send, or use elsewhere: a \`.png\` file and its path, never \`html_render\`.
-- Never use \`preview_*\` unasked to verify or show your own edit. Use them when the current request asks for browser work, including recording edits, or names a page or tab. Do not repeat preview calls from an earlier turn. Public pages: web fetch or search unless browser work was asked; then preview tools only, no web fetch. Close a tab you opened before you reply, unless the user asked for it or uses it.`,
+- Never use \`preview_*\` unasked to verify or show your own edit. Use them when the current request asks for browser work, including recording edits, or names a page or tab. Do not repeat preview calls from an earlier turn. Public pages: web fetch or search unless browser work was asked; then preview tools only, no web fetch. Close a tab you opened before you reply, unless the user asked for it or uses it.
+- ${A2UI_POINTER}`,
 ];
 
 export const T3_CODE_ORCHESTRATION_INSTRUCTIONS = `

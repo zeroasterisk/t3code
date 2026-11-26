@@ -18,7 +18,7 @@ An app can open full screen right after you tap or click in it. On web and deskt
 
 ## Interactive replies (A2UI)
 
-An agent can also answer with a small form instead of a page, such as a choice per item, a few fields to fill in, or a confirm button. It writes the form in [A2UI](https://a2ui.org) inside its reply, and T3 Code draws it with its own buttons, inputs, and chips, so it matches your theme and works with every provider. Interactive replies work on web and desktop; on mobile the reply shows as text.
+An agent can also answer with a small form instead of a page, such as a choice per item, a few fields to fill in, or a confirm button. It writes the form in [A2UI](https://a2ui.org) inside its reply, and T3 Code draws it with its own buttons, inputs, and chips, so it matches your theme and works with every provider. Agents learn the format from T3 Code and check a form before they send it, so you don't need to explain it. Interactive replies work on web and desktop; on mobile the reply shows as text.
 
 While the reply streams, a placeholder holds its place. When you submit, T3 Code sends your answer to the agent as an ordinary message in the thread: a short heading plus the values you chose, which you can read in the thread. The exact data the agent receives sits under **Action payload**, collapsed. The form then locks and shows **Sent to the agent**. If sending fails, the form stays open so you can try again.
 
