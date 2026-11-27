@@ -54,8 +54,13 @@ const UPDATE = [
   "</a2ui>",
 ].join("\n");
 
-type Row = { id: string; role: "user" | "assistant"; text: string };
-const message = (row: Row) => ({ ...row, threadId, attachments: [], streaming: false });
+type Row = { id: string; role: "user" | "assistant"; text: string; streaming?: boolean };
+const message = (row: Row) => ({
+  ...row,
+  threadId,
+  attachments: [],
+  streaming: row.streaming ?? false,
+});
 
 /** The thread store mocked with these rows; it honours the `messageRoles` filter like SQL does. */
 const layerFor = (rows: ReadonlyArray<Row>, filters: Array<unknown>) =>
@@ -147,6 +152,19 @@ it.effect("an assistant's earlier form is updatable and cannot be drawn again", 
         ],
         filters,
       ),
+    ),
+  );
+});
+
+it.effect("the still-streaming reply is the draft, not an earlier surface", () => {
+  const filters: Array<unknown> = [];
+  return Effect.gen(function* () {
+    // This turn already streamed its form; checking that same reply must not collide with itself.
+    const draft = yield* call("a2ui_check", { reply: `Pick.\n${FORM}` });
+    expect(draft.structuredContent).toEqual({ ok: true });
+  }).pipe(
+    Effect.provide(
+      layerFor([{ id: "m1", role: "assistant", text: `Pick.\n${FORM}`, streaming: true }], filters),
     ),
   );
 });

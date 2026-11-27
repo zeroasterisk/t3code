@@ -7,15 +7,15 @@ import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import * as McpToolAccess from "../../McpToolAccess.ts";
 import { A2uiToolkit } from "./tools.ts";
 
-const loadFailure = () =>
+const loadFailure = (what: string) => () =>
   new OrchestratorMcpFailure({
     code: "orchestration_error",
-    message: "The A2UI rules could not be loaded.",
+    message: `The A2UI ${what} could not be loaded.`,
   });
 
 export const layer = McpToolAccess.toLayer(A2uiToolkit, {
   a2ui_rules: McpToolAccess.readsAsCaller(() =>
-    Effect.tryPromise({ try: () => a2uiRules(), catch: loadFailure }).pipe(
+    Effect.tryPromise({ try: () => a2uiRules(), catch: loadFailure("rules") }).pipe(
       Effect.map((rules) => ({ rules })),
     ),
   ),
@@ -36,12 +36,14 @@ export const layer = McpToolAccess.toLayer(A2uiToolkit, {
               }),
           ),
         );
+      // A still-streaming message is the reply being drafted, not an earlier one.
       const earlier = messages.filter(
-        (message) => message.role === "assistant" && message.text.includes("<a2ui>"),
+        (message) =>
+          message.role === "assistant" && !message.streaming && message.text.includes("<a2ui>"),
       );
       return yield* Effect.tryPromise({
         try: () => checkA2uiReply(reply, earlier),
-        catch: loadFailure,
+        catch: loadFailure("checker"),
       });
     }),
   ),
